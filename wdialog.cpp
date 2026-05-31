@@ -1,8 +1,8 @@
 /*
-** Astrolog (Version 7.80) File: wdialog.cpp
+** Astrolog (Version 8.00) File: wdialog.cpp
 **
 ** IMPORTANT NOTICE: Astrolog and all chart display routines and anything
-** not enumerated below used in this program are Copyright (C) 1991-2025 by
+** not enumerated below used in this program are Copyright (C) 1991-2026 by
 ** Walter D. Pullen (Astara@msn.com, http://www.astrolog.org/astrolog.htm).
 ** Permission is granted to freely use, modify, and distribute these
 ** routines provided these credits and notices remain unmodified with any
@@ -48,7 +48,7 @@
 ** Initial programming 8/28-30/1991.
 ** X Window graphics initially programmed 10/23-29/1991.
 ** PostScript graphics initially programmed 11/29-30/1992.
-** Last code change made 6/19/2025.
+** Last code change made 5/28/2026.
 */
 
 #include "astrolog.h"
@@ -165,11 +165,10 @@ void SetEditSZOA(HWND hdlg, int idDst, int idZon, int idLon, int idLat,
   nSav = us.fAnsiChar; us.fAnsiChar = fFalse;
   sprintf(sz, "%s", SzLocation(lon, lat));
   us.fAnsiChar = nSav;
-  i = 7 + VSeconds(0, 3, 7);
-  sz[i] = chNull;
+  sz[is.ichLocSplit] = chNull;
   SetEditSz(hdlg, idLon, &sz[0]);
   SetCombo(idLon, "122W20"); SetCombo(idLon, "0E00");
-  SetEditSz(hdlg, idLat, &sz[i+1]);
+  SetEditSz(hdlg, idLat, &sz[is.ichLocSplit+1]);
   SetCombo(idLat, "47N36"); SetCombo(idLat, "0S00");
 }
 
@@ -179,13 +178,13 @@ void SetEditSZOA(HWND hdlg, int idDst, int idZon, int idLon, int idLat,
 
 void SetEditColor(HWND hdlg, int id, KI ki, int nExtra)
 {
-  int i, iMax = cColor + (nExtra > 0)*(nExtra+1);
+  int i, iMax = cColor2 + (nExtra > 0)*(nExtra + 1);
 
-  SetEdit(id, szColor[ki]);
+  SetEdit(id, SzColor(ki));
   for (i = 0; i < iMax; i++) {
     SetCombo(id, szColor[i]);
-    if (i == kWhite && nExtra >= 2)
-      i += nExtra;
+    if (i == kWhite)
+      i += (cColor2 - cColor) + (nExtra >= 2)*nExtra;
   }
 }
 
@@ -301,7 +300,7 @@ flag FDlgInfoAtlas(HWND hdlg, WORD wParam, flag fDefault)
 
   // "Apply Info" button:
   } else if (wParam == dbInAppl) {
-    j = (int)SendDlgItemMessage(hdlg, dlIn, LB_GETCURSEL, 0, 0); 
+    j = (int)SendDlgItemMessage(hdlg, dlIn, LB_GETCURSEL, 0, 0);
     i = (int)SendDlgItemMessage(hdlg, dlIn, LB_GETITEMDATA, j, 0);
     if (i < 0) {
       GetEdit(deLoc, sz);
@@ -333,7 +332,7 @@ flag FDlgInfoAtlas(HWND hdlg, WORD wParam, flag fDefault)
 
 KV KvDialog()
 {
-  chc.rgbResult = rgbbmp[gi.kiOn];
+  chc.rgbResult = KvFromKi(gi.kiOn);
   chc.lpCustColors = (dword *)rgbbmp;
   ChooseColor(&chc);
   return chc.rgbResult;
@@ -369,6 +368,7 @@ flag API DlgOpenChart()
       "Astrological Exchange Files (*.aaf)\0*.aaf\0"
       "Quick*Chart Files (*.qck)\0*.qck\0"
       "Astrodatabank Files (*.xml)\0*.xml\0"
+      "iCalendar Files (*.ics)\0*.ics\0"
       "Text Files [Solar Fire] (*.txt)\0*.txt\0"
       "All Files (*.*)\0*.*\0";
     sprintf(szFileName, "*.as");
@@ -432,14 +432,14 @@ flag API DlgSaveChart()
     ofn.lpstrTitle = "Save Chart Positions";
     break;
   case cmdSaveSettings:
-    ofn.lpstrTitle = "Save Settings";
+    ofn.lpstrTitle = "Save Program Settings";
     sprintf(szFileName, "%s", DEFAULT_INFOFILE);
     break;
   case cmdSaveList:
     ofn.lpstrTitle = "Save Chart List";
     break;
   case cmdSaveAAF:
-    ofn.lpstrTitle = "Save Chart AAF Format";
+    ofn.lpstrTitle = "Save Chart Exchange Format";
     ofn.lpstrFilter =
       "Astrological Exchange Files (*.aaf)\0*.aaf\0All Files (*.*)\0*.*\0";
     ofn.lpstrDefExt = "aaf";
@@ -452,42 +452,64 @@ flag API DlgSaveChart()
     ofn.lpstrDefExt = "qck";
     sprintf(szFileName, "*.qck");
     break;
+  case cmdSaveCalendar:
+    ofn.lpstrTitle = "Save Chart Calendar Format";
+    ofn.lpstrFilter =
+      "iCalendar Files (*.ics)\0*.ics\0All Files (*.*)\0*.*\0";
+    ofn.lpstrDefExt = "ics";
+    sprintf(szFileName, "*.ics");
+    break;
   case cmdSaveText:
     if (!us.fTextHTML) {
-      ofn.lpstrTitle = "Save Chart Text";
+      ofn.lpstrTitle = "Export Chart Text";
       ofn.lpstrFilter = "Text Files (*.txt)\0*.txt\0All Files (*.*)\0*.*\0";
       ofn.lpstrDefExt = "txt";
       sprintf(szFileName, "*.txt");
     } else {
-      ofn.lpstrTitle = "Save Chart HTML Text";
+      ofn.lpstrTitle = "Export Chart HTML Text";
       ofn.lpstrFilter = "HTML Files (*.htm)\0*.txt\0All Files (*.*)\0*.*\0";
       ofn.lpstrDefExt = "htm";
       sprintf(szFileName, "*.htm");
     }
     break;
   case cmdSaveBitmap:
-    ofn.lpstrTitle = "Save Chart Bitmap";
-    ofn.lpstrFilter =
-      "Windows Bitmaps (*.bmp)\0*.bmp\0All Files (*.*)\0*.*\0";
-    ofn.lpstrDefExt = "bmp";
-    sprintf(szFileName, "*.bmp");
+    if (gs.chBmpMode != 'P') {
+      ofn.lpstrTitle = "Export Chart Bitmap";
+      ofn.lpstrFilter =
+        "Windows Bitmaps (*.bmp)\0*.bmp\0All Files (*.*)\0*.*\0";
+      ofn.lpstrDefExt = "bmp";
+      sprintf(szFileName, "*.bmp");
+    } else {
+      ofn.lpstrTitle = "Export Chart PNG Bitmap";
+      ofn.lpstrFilter =
+        "Portable Network Graphics (*.png)\0*.png\0All Files (*.*)\0*.*\0";
+      ofn.lpstrDefExt = "png";
+      sprintf(szFileName, "*.png");
+    }
     break;
   case cmdSavePicture:
-    ofn.lpstrTitle = "Save Chart Metafile";
+    ofn.lpstrTitle = "Export Chart Metafile";
     ofn.lpstrFilter =
       "Windows Metafiles (*.wmf)\0*.wmf\0All Files (*.*)\0*.*\0";
     ofn.lpstrDefExt = "wmf";
     sprintf(szFileName, "*.wmf");
     break;
   case cmdSavePS:
-    ofn.lpstrTitle = "Save Chart PostScript";
+    ofn.lpstrTitle = "Export Chart PostScript";
     ofn.lpstrFilter =
       "PostScript Text (*.eps)\0*.eps\0All Files (*.*)\0*.*\0";
     ofn.lpstrDefExt = "eps";
     sprintf(szFileName, "*.eps");
     break;
+  case cmdSaveSVG:
+    ofn.lpstrTitle = "Export Chart SVG";
+    ofn.lpstrFilter =
+      "Scalable Vector Graphics (*.svg)\0*.svg\0All Files (*.*)\0*.*\0";
+    ofn.lpstrDefExt = "svg";
+    sprintf(szFileName, "*.svg");
+    break;
   case cmdSaveWire:
-    ofn.lpstrTitle = "Save Chart Wireframe";
+    ofn.lpstrTitle = "Export Chart Wireframe";
     ofn.lpstrFilter =
       "Daedalus Wireframes (*.dw)\0*.dw\0All Files (*.*)\0*.*\0";
     ofn.lpstrDefExt = "dw";
@@ -545,6 +567,10 @@ flag API DlgSaveChart()
     gs.ft = ftPS;
     us.fGraphics = wi.fRedraw = fTrue;
     break;
+  case cmdSaveSVG:
+    gs.ft = ftSVG;
+    us.fGraphics = wi.fRedraw = fTrue;
+    break;
   case cmdSaveWire:
     gs.ft = ftWire;
     us.fGraphics = wi.fRedraw = fTrue;
@@ -555,6 +581,8 @@ flag API DlgSaveChart()
     return FOutputAAFFile();
   case cmdSaveQuick:
     return FOutputQuickFile();
+  case cmdSaveCalendar:
+    return FOutputCalendarFile();
   }
   return fTrue;
 }
@@ -752,6 +780,86 @@ BOOL API DlgAbort(HWND hdlg, uint message, WPARAM wParam, LPARAM lParam)
 }
 
 
+// Processing function for the file settings dialog, as brought up with the
+// File / File Settings menu command.
+
+flag API DlgFile(HWND hdlg, uint message, WORD wParam, LONG lParam)
+{
+  char sz[cchSzMax];
+  int i, nwx;
+  real rI;
+
+  switch (message) {
+  case WM_INITDIALOG:
+    SetCheck(dxFi_YOO, us.fSmartSave);
+    SetCheck(dxFi_kh, us.fTextHTML);
+    SetCheck(dxFi_Wb, wi.fBmpWindow);
+    SetCheck(dxFi_Xbp, gs.chBmpMode == 'P');
+    SetCheck(dxFi_Xp0, !gs.fPSComplete);
+    SetCheck(dxFi_Wt, wi.fNoPopup);
+    SetCheck(dxFi_Yo, us.fWriteOld);
+    SetCheck(dxFi_YXf, gs.nFontAll > 0);
+    SetEditN(deFi_Wx, wi.nAntialias);
+    SetEditN(deFi_YXx, gs.nThickAdjust);
+    SetCheck(dxFi_XI0, !gs.fBackDraw);
+    for (i = 25; i <= 100; i += 25) {
+      sprintf(sz, "%d", i);
+      SetCombo(dcFi_XI1, sz);
+    }
+    SetEditR(hdlg, dcFi_XI1, gs.rBackPct, -3);
+    SetEdit(deFi_Y5i, us.szADB);
+    SetEdit(deFi_YXp0_x, SzLength(gs.xInch));
+    SetEdit(deFi_YXp0_y, SzLength(gs.yInch));
+    SetRadio(gs.nOrient == 0 ? dr03 : (gs.nOrient > 0 ? dr01 : dr02),
+      dr01, dr03);
+    return fFalse;
+
+  case WM_COMMAND:
+    if (wParam == IDOK) {
+      nwx = GetEditN(hdlg, deFi_Wx);
+      rI = GetEditR(hdlg, dcFi_XI1);
+      EnsureN(nwx, FValidAntialias(nwx), "antialias");
+      EnsureR(rI, FValidBackPct(rI), "background transparency");
+      us.fSmartSave = GetCheck(dxFi_YOO);
+      us.fTextHTML = GetCheck(dxFi_kh);
+      wi.fBmpWindow = GetCheck(dxFi_Wb);
+      if (GetCheck(dxFi_Xbp))
+        gs.chBmpMode = 'P';
+      else if (gs.chBmpMode == 'P')
+        gs.chBmpMode = 'B';
+      gs.fPSComplete = !GetCheck(dxFi_Xp0);
+      wi.fNoPopup = GetCheck(dxFi_Wt);
+      us.fWriteOld = GetCheck(dxFi_Yo);
+      gs.nFontAll = GetCheck(dxFi_YXf) * gi.nFontPrev;
+      gs.nFontTxt = gs.nFontAll / 0x100000;
+      gs.nFontSig = (gs.nFontAll / 0x10000) % 0x10;
+      gs.nFontHou = (gs.nFontAll / 0x1000) % 0x10;
+      gs.nFontObj = (gs.nFontAll / 0x100) % 0x10;
+      gs.nFontAsp = (gs.nFontAll / 0x10) % 0x10;
+      gs.nFontNak = gs.nFontAll % 0x10;
+      if (nwx <= 0)
+        gs.fAntialias = fFalse;
+      else
+        wi.nAntialias = nwx;
+      gs.nThickAdjust = GetEditN(hdlg, deFi_YXx);
+      gs.fBackDraw = !GetCheck(dxFi_XI0);
+      gs.rBackPct = rI;
+      GetEdit(deFi_Y5i, sz); FCloneSz(sz, &us.szADB);
+      GetEdit(deFi_YXp0_x, sz); gs.xInch = RParseSz(sz, pmLength);
+      GetEdit(deFi_YXp0_y, sz); gs.yInch = RParseSz(sz, pmLength);
+      gs.nOrient = GetCheck(dr03) ? 0 : (GetCheck(dr01) ? 1 : -1);
+      wi.fRedraw = fTrue;
+    }
+    if (wParam == IDOK || wParam == IDCANCEL) {
+      EndDialog(hdlg, fTrue);
+      return fTrue;
+    }
+    break;
+  }
+  return fFalse;
+}
+
+
 // Processing function for the chart list dialog, as brought up with the
 // Info / Chart List / View Chart List menu command.
 
@@ -852,7 +960,7 @@ flag API DlgList(HWND hdlg, uint message, WORD wParam, LONG lParam)
     }
     if (wParam == IDOK || wParam == dbLi_st || wParam == dbLi_cf ||
       wParam == dbLi_ec || wParam == dbLi_dc) {
-      j = (int)SendDlgItemMessage(hdlg, dlLi, LB_GETCURSEL, 0, 0); 
+      j = (int)SendDlgItemMessage(hdlg, dlLi, LB_GETCURSEL, 0, 0);
       i = (int)SendDlgItemMessage(hdlg, dlLi, LB_GETITEMDATA, j, 0);
       if (i < 0 && wParam != IDOK && wParam != dbLi_cf) {
         PrintWarning(
@@ -958,6 +1066,8 @@ flag API DlgColor(HWND hdlg, uint message, WORD wParam, LONG lParam)
       SetEditColor(hdlg, dce0 + i, kElemA[i], 0);
     for (i = 1; i <= cRay; i++)
       SetEditColor(hdlg, dcr1 - 1 + i, kRayA[i], 0);
+    SetEditColor(hdlg, dca01, gi.kiPen, 0);
+    SetEditColor(hdlg, dca02, gs.kiDeca, 4);
     return fTrue;
 
   case WM_COMMAND:
@@ -973,7 +1083,7 @@ flag API DlgColor(HWND hdlg, uint message, WORD wParam, LONG lParam)
             else
               kRainbowA[j] = l;
           } else
-            EnsureN(l, FValidColor(l), "palette color");
+            EnsureN(l, FValidColorA(l), "palette color");
         }
         for (i = 0; i < cElem; i++) {
           GetEdit(dce0 + i, sz);
@@ -981,7 +1091,7 @@ flag API DlgColor(HWND hdlg, uint message, WORD wParam, LONG lParam)
           if (k)
             kElemA[i] = l;
           else
-            EnsureN(l, FValidColor(l), "element color");
+            EnsureN(l, FValidColorA(l), "element color");
         }
         for (i = 1; i <= cRay; i++) {
           GetEdit(dcr1 - 1 + i, sz);
@@ -989,7 +1099,18 @@ flag API DlgColor(HWND hdlg, uint message, WORD wParam, LONG lParam)
           if (k)
             kRayA[i] = l;
           else
-            EnsureN(l, FValidColor(l), "aspect color");
+            EnsureN(l, FValidColorA(l), "ray color");
+        }
+        for (i = 0; i <= 1; i++) {
+          GetEdit(dca01 + i, sz);
+          l = NParseSz(sz, pmColor);
+          if (k) {
+            if (i <= 0)
+              gi.kiPen = l;
+            else
+              gs.kiDeca = l;
+          } else
+            EnsureN(l, FValidColorA(l) || (i == 1 && l == kMax), "color");
         }
       }
       wi.fRedraw = fTrue;
@@ -1284,13 +1405,12 @@ flag API DlgAspect(HWND hdlg, uint message, WORD wParam, LONG lParam)
           if (j)
             kAspA[i] = k;
           else
-            EnsureN(k, FValidColor(k), "color");
+            EnsureN(k, FValidColorA(k), "color");
         }
       }
       for (i = 1; i <= cAspect; i++)
         ignorea[i] = GetCheck(dxa01 - 1 + i);
-      for (us.nAsp = cAspect; us.nAsp > 0 && ignorea[us.nAsp]; us.nAsp--)
-        ;
+      AdjustAspectCount();
       wi.fRedraw = fTrue;
     }
     if (wParam == IDOK || wParam == IDCANCEL) {
@@ -1344,7 +1464,7 @@ flag API DlgObject(HWND hdlg, uint message, WORD wParam, LONG lParam)
           if (j)
             kObjU[i] = k;
           else
-            EnsureN(k, FValidColor2(k), "color");
+            EnsureN(k, FValidColor2A(k), "color");
         }
       }
       wi.fRedraw = fTrue;
@@ -1402,7 +1522,7 @@ flag API DlgObject2(HWND hdlg, uint message, WORD wParam, LONG lParam)
           if (j)
             kObjU[i] = k;
           else
-            EnsureN(k, i < starLo ? FValidColor2(k) : FValidColorS(k),
+            EnsureN(k, i < starLo ? FValidColor2A(k) : FValidColorSA(k),
               "color");
         }
       }
@@ -1463,7 +1583,7 @@ flag API DlgObjectM(HWND hdlg, uint message, WORD wParam, LONG lParam)
           if (j)
             kObjU[i] = k;
           else
-            EnsureN(k, FValidColorM(k), "color");
+            EnsureN(k, FValidColorMA(k), "color");
         }
       }
       us.fMoonMove = GetCheck(dxMo_Ym);
@@ -1504,8 +1624,8 @@ flag API DlgCustom(HWND hdlg, uint message, WORD wParam, LONG lParam)
       j = rgTypSwiss[i - custLo];
       k = rgObjSwiss[i - custLo];
       if (j != 2)
-        sprintf(sz, "%s%d",
-          j <= 0 ? "h" : (j == 1 ? "" : (j == 3 ? "m" : "j")), k);
+        sprintf(sz, "%s%d", j <= 0 ? "h" :
+          (j == 1 ? "" : (j == 3 ? "m" : (j == 4 ? "j" : "A"))), k);
       else
         sprintf(sz, k < cobLo ? "%.3s" : "%.4s", szObjName[k]);
       for (pch = sz; *pch; pch++)
@@ -1550,7 +1670,7 @@ flag API DlgCustom(HWND hdlg, uint message, WORD wParam, LONG lParam)
           *pch = chNull;
         pch = sz;
         k = (*pch == 'h' ? 0 : (*pch == 'm' ? 3 : (*pch == 'j' ? 4 :
-          (FNumCh(*pch) ? 1 : 2))));
+          (*pch == 'A' ? 5 : (FNumCh(*pch) ? 1 : 2)))));
         if (k == 0 || k >= 3)
           pch++;
         l = (k == 2 ? NParseSz(pch, pmObject) : NFromSz(pch));
@@ -1562,7 +1682,7 @@ flag API DlgCustom(HWND hdlg, uint message, WORD wParam, LONG lParam)
           SwissGetObjName(sz, l);
           break;
         case 2:
-          sprintf(sz, "%s", l >= 0 ? szObjName[l] : szObjUnknown);
+          sprintf(sz, "%s", FValidObj(l) ? szObjName[l] : szObjUnknown);
           break;
         case 3:
           l = ObjMoons(l);
@@ -1573,6 +1693,9 @@ flag API DlgCustom(HWND hdlg, uint message, WORD wParam, LONG lParam)
           if (!GetJPLHorizons(l, &rT, &rT, &rT, &rT, &rT, &rT, sz))
 #endif
             sprintf(sz, "%s", szObjUnknown);
+          break;
+        case 5:
+          sprintf(sz, "%s", FValidPart(l) ? ai[l-1].name : szObjUnknown);
           break;
         }
         SetEdit(den01 - custLo + i, sz);
@@ -1593,11 +1716,11 @@ flag API DlgCustom(HWND hdlg, uint message, WORD wParam, LONG lParam)
             *pch = chNull;
           pch = sz;
           k = (*pch == 'h' ? 0 : (*pch == 'm' ? 3 : (*pch == 'j' ? 4 :
-            (FNumCh(*pch) ? 1 : 2))));
+            (*pch == 'A' ? 5 : (FNumCh(*pch) ? 1 : 2)))));
           if (k == 0 || k >= 3)
             pch++;
           l = (k == 2 ? NParseSz(pch, pmObject) : NFromSz(pch));
-          EnsureN(l, l >= (int)(k != 2) || k >= 4, "definition");
+          EnsureN(l, FValidCustom(l, k), "definition");
 #endif
           if (j) {
 #ifdef SWISS
@@ -2151,88 +2274,86 @@ flag API DlgDisplay(HWND hdlg, uint message, WORD wParam, LONG lParam)
 {
   char sz[cchSzMax];
   int na, ni, nro, i;
+  real ryw;
 
   switch (message) {
   case WM_INITDIALOG:
-    SetCheck(dxDi_Yr, us.fRound);
     SetCheck(dxDi_Yd, us.fEuroDate);
     SetCheck(dxDi_Yt, us.fEuroTime);
+    SetCheck(dxDi_Yz1, us.fOffsetOnly);
     SetCheck(dxDi_Yv, us.fEuroDist);
-    SetCheck(dxDi_YC, us.fSmartCusp);
+    SetCheck(dxDi_Yr, us.fRound);
+    SetCheck(dxDi_b0, us.fSeconds);
+    SetCheck(dxDi_b1, us.fSecond1K);
+    SetCheck(dxDi_b2, us.fSecondHide);
     SetEditN(deDi_A, us.nAsp);
+    SetCheck(dxDi_YC, us.fSmartCusp);
     if (us.objRequire >= 0)
       SetEdit(deDi_RO, szObjName[us.objRequire]);
     else
       SetEdit(deDi_RO, "None");
-    SetCheck(dxDi_Yu, us.fEclipse);
-    SetCheck(dxDi_Yu0, !us.fEclipseAny);
-    for (i = 0; i < 4; i++)
-      SetCheck(dxDi_z0 + i, ignorez[i]);
+    SetCheck(dxDi_AP, us.fParallel2);
+    SetCheck(dxDi_gd, us.fDistance);
     SetEditN(deDi_I, us.nScreenWidth);
     SetCheck(dxDi_Y8, us.fClip80);
-    SetCheck(dxDi_YOO, us.fSmartSave);
-    SetCheck(dxDi_kh, us.fTextHTML);
-    SetCheck(dxDi_Yo, us.fWriteOld);
-    SetCheck(dxDi_YXf, gs.nFontAll > 0);
-    SetEdit(deDi_YXp0_x, SzLength(gs.xInch));
-    SetEdit(deDi_YXp0_y, SzLength(gs.yInch));
-    SetRadio(gs.nOrient == 0 ? dr03 : (gs.nOrient > 0 ? dr01 : dr02),
-      dr01, dr03);
+    SetCheck(dxDi_I0, us.fSabian);
+    SetEditR(hdlg, deDi_Yw, us.rStation, -6);
+    SetCheck(dxDi_Yu, us.fEclipse);
+    SetCheck(dxDi_Yu0, !us.fEclipseAny);
+    for (i = 0; i < arMax; i++)
+      SetCheck(dxDi_z0 + i, ignorez[i]);
     SetRadio(dr04 + us.nDegForm, dr04, dr07);
     SetRadio(dr08 + us.nCharset, dr08, dr11);
-    for (i = 0; i < 5; i++)
+    for (i = 0; i < rrMax; i++)
       SetCheck(dxDi_r0 + i, ignore7[i]);
     SetRadio(dr12 + us.nAppSep, dr12, dr14);
-    SetCheck(dxDi_gd, us.fDistance);
     return fTrue;
 
   case WM_COMMAND:
     if (wParam == IDOK) {
       GetEdit(deDi_A, sz); na = NParseSz(sz, pmAspect);
-      ni = GetEditN(hdlg, deDi_I);
       GetEdit(deDi_RO, sz); nro = NParseSz(sz, pmObject);
+      ni = GetEditN(hdlg, deDi_I);
+      ryw = GetEditR(hdlg, deDi_Yw);
       EnsureN(na, FValidAspect(na), "aspect count");
-      EnsureN(ni, FValidScreen(ni), "text columns");
       EnsureN(nro, FItem(nro) || nro == -1, "required object");
-      us.fRound = GetCheck(dxDi_Yr);
+      EnsureN(ni, FValidScreen(ni), "text columns");
+      EnsureR(ryw, ryw >= 0.0, "stationary velocity");
       us.fEuroDate = GetCheck(dxDi_Yd);
       us.fEuroTime = GetCheck(dxDi_Yt);
+      us.fOffsetOnly = GetCheck(dxDi_Yz1);
       us.fEuroDist = GetCheck(dxDi_Yv);
-      us.fSmartCusp = GetCheck(dxDi_YC);
+      us.fRound = GetCheck(dxDi_Yr);
+      us.fSeconds = GetCheck(dxDi_b0);
+      WiCheckMenu(cmdSecond, us.fSeconds);
+      us.fSecond1K = GetCheck(dxDi_b1);
+      us.fSecondHide = GetCheck(dxDi_b2);
       us.nAsp = na;
       for (i = us.nAsp + 1; i <= na; i++)
         ignorea[i] = fFalse;
       for (i = na + 1; i <= cAspect; i++)
         ignorea[i] = fTrue;
+      us.fSmartCusp = GetCheck(dxDi_YC);
       us.objRequire = nro;
-      us.fEclipse = GetCheck(dxDi_Yu);
-      us.fEclipseAny = !GetCheck(dxDi_Yu0);
-      for (i = 0; i < 4; i++)
-        ignorez[i] = GetCheck(dxDi_z0 + i);
+      us.fParallel2 = GetCheck(dxDi_AP);
+      us.fDistance = GetCheck(dxDi_gd);
       us.nScreenWidth = ni;
       us.fClip80 = GetCheck(dxDi_Y8);
-      us.fSmartSave = GetCheck(dxDi_YOO);
-      us.fTextHTML = GetCheck(dxDi_kh);
-      us.fWriteOld = GetCheck(dxDi_Yo);
-      gs.nFontAll = GetCheck(dxDi_YXf) * gi.nFontPrev;
-      gs.nFontTxt = gs.nFontAll / 100000;
-      gs.nFontSig = (gs.nFontAll / 10000) % 10;
-      gs.nFontHou = (gs.nFontAll / 1000) % 10;
-      gs.nFontObj = (gs.nFontAll / 100) % 10;
-      gs.nFontAsp = (gs.nFontAll / 10) % 10;
-      gs.nFontNak = gs.nFontAll % 10;
-      GetEdit(deDi_YXp0_x, sz); gs.xInch = RParseSz(sz, pmLength);
-      GetEdit(deDi_YXp0_y, sz); gs.yInch = RParseSz(sz, pmLength);
-      gs.nOrient = GetCheck(dr03) ? 0 : (GetCheck(dr01) ? 1 : -1);
+      us.fSabian = GetCheck(dxDi_I0);
+      us.rStation = ryw;
+      us.fEclipse = GetCheck(dxDi_Yu);
+      us.fEclipseAny = !GetCheck(dxDi_Yu0);
+      for (i = 0; i < arMax; i++)
+        ignorez[i] = GetCheck(dxDi_z0 + i);
       us.nDegForm = GetCheck(dr04) ? 0 : (GetCheck(dr05) ? 1 :
         (GetCheck(dr06) ? 2 : 3));
       us.nCharset = GetRadio(hdlg, dr08, dr11);
-      for (i = 0; i < 5; i++)
+      for (i = 0; i < rrMax; i++)
         ignore7[i] = GetCheck(dxDi_r0 + i);
       if (!ignore7[rrRay])
         EnsureRay();
       us.nAppSep = GetRadio(hdlg, dr12, dr14);
-      us.fDistance = GetCheck(dxDi_gd);
+      WiCheckMenu(cmdApplying, us.nAppSep == 1);
       wi.fCast = fTrue;
     }
     if (wParam == IDOK || wParam == IDCANCEL) {
@@ -2293,7 +2414,7 @@ flag API DlgTransit(HWND hdlg, uint message, WORD wParam, LONG lParam)
       GetTimeNow(&mon, &day, &yea, &tim, ciDefa.dst, ciDefa.zon);
       SetEditMDYT(hdlg, dcTrMon, dcTrDay, dcTrYea, dcTrTim,
         mon, day, yea, tim);
-      SetEditSZOA(hdlg, dcTrDst, dcTrZon, dcInLon, dcInLat,
+      SetEditSZOA(hdlg, dcTrDst, dcTrZon, dcDeLon, dcDeLat,
         ciDefa.dst, ciDefa.zon, ciDefa.lon, ciDefa.lat);
     }
 #endif
@@ -2337,6 +2458,10 @@ flag API DlgTransit(HWND hdlg, uint message, WORD wParam, LONG lParam)
       case 4: wi.nMode = gTraNatTim; break;
       case 5: wi.nMode = gTraNatInf; break;
       case 6: wi.nMode = gTraNatGra; break;
+      default:
+        if (us.fInDay || us.fInDayInf || us.fInDayGra ||
+          us.fTransit || us.fTransitInf || us.fTransitGra)
+          wi.nMode = gWheel;
       }
       n2 = GetCheck(dr08) ? 0 : (GetCheck(dr09) ? 1 :
         (GetCheck(dr10) ? 2 : 3));
@@ -2379,13 +2504,14 @@ CONST real rgrProgCusp[2] = {1.0, rDayInYear};
 flag API DlgProgress(HWND hdlg, uint message, WORD wParam, LONG lParam)
 {
   char sz[cchSzMax], szT[cchSzDef];
-  int mon, day, yea, i;
-  real tim, rd, rC;
+  int npO, mon, day, yea, i;
+  real tim, dst, zon, rd, rC;
 
   switch (message) {
   case WM_INITDIALOG:
     SetCheck(dxPr_p, us.fProgress);
-    SetRadio(dr01 + us.nProgress, dr01, dr03);
+    SetRadio(dr01 + (us.nProgress == ptCast ? 0 :
+      (us.nProgress == ptMixed ? 1 : 2)), dr01, dr03);
     SetEditR(hdlg, dcPr_pd, us.rProgDay, -6);
     for (i = 0; i < 4; i++) {
       FormatR(szT, rgrProg[i], -6);
@@ -2402,8 +2528,16 @@ flag API DlgProgress(HWND hdlg, uint message, WORD wParam, LONG lParam)
       if (us.rProgCusp == rgrProgCusp[i])
         SetEdit(dcPr_pC, sz);
     }
+    if (us.objProgArc >= 0)
+      SetEdit(dePr_pO, szObjName[us.objProgArc]);
+    else
+      SetEdit(dePr_pO, "None");
+    SetCheck(dxPr_pc, us.fProgRAMC);
     SetEditMDYT(hdlg, dcPrMon, dcPrDay, dcPrYea, dcPrTim,
       MonT, DayT, YeaT, TimT);
+    SetEditSZOA(hdlg, dcPrDst, dcPrZon, dcDeLon, dcDeLat,
+      DstT, ZonT, LonT, LatT);
+    SetCombo(dcPrDst, "Autodetect");
     SetFocus(GetDlgItem(hdlg, dcPrMon));
     return fFalse;
 
@@ -2413,30 +2547,43 @@ flag API DlgProgress(HWND hdlg, uint message, WORD wParam, LONG lParam)
       GetTimeNow(&mon, &day, &yea, &tim, ciDefa.dst, ciDefa.zon);
       SetEditMDYT(hdlg, dcPrMon, dcPrDay, dcPrYea, dcPrTim,
         mon, day, yea, tim);
+      SetEditSZOA(hdlg, dcPrDst, dcPrZon, dcDeLon, dcDeLat,
+        ciDefa.dst, ciDefa.zon, ciDefa.lon, ciDefa.lat);
     }
 #endif
 
     if (wParam == IDOK) {
-      rd = GetEditR(hdlg, dcPr_pd);
+      GetEdit(dcPr_pd, sz);
+      i = ChCap(sz[0]) == 'X';
+      rd = RFromSz(sz + i);
+      if (i != 0 && rd != 0.0)
+        rd = rDayInYear / rd;
       rC = GetEditR(hdlg, dcPr_pC);
+      GetEdit(dePr_pO, sz); npO = NParseSz(sz, pmObject);
       GetEdit(dcPrMon, sz); mon = NParseSz(sz, pmMon);
       GetEdit(dcPrDay, sz); day = NParseSz(sz, pmDay);
       GetEdit(dcPrYea, sz); yea = NParseSz(sz, pmYea);
       GetEdit(dcPrTim, sz); tim = RParseSz(sz, pmTim);
+      GetEdit(dcPrDst, sz); dst = RParseSz(sz, pmDst);
+      GetEdit(dcPrZon, sz); zon = RParseSz(sz, pmZon);
       EnsureR(rd, rd != 0.0, "degree per day");
       EnsureR(rC, rC != 0.0, "cusp move ratio");
+      EnsureN(npO, FValidProgArc(npO), "solar arc planet");
       EnsureN(mon, FValidMon(mon), "month");
       EnsureN(yea, FValidYea(yea), "year");
       EnsureN(day, FValidDay(day, mon, yea), "day");
       EnsureR(tim, FValidTim(tim), "time");
+      EnsureR(dst, FValidDst(dst), "daylight saving");
+      EnsureR(zon, FValidZon(zon), "time zone");
       us.fProgress = GetCheck(dxPr_p);
       WiCheckMenu(cmdProgress, us.fProgress);
       us.nProgress = GetCheck(dr01) ? ptCast :
-        (GetCheck(dr02) ? ptSolarArc : ptMixed);
+        (GetCheck(dr02) ? ptMixed : ptSolarArc);
       us.rProgDay = rd;
       us.rProgCusp = rC;
-      SetCI(ciTran, mon, day, yea, tim,
-        ciDefa.dst, ciDefa.zon, ciDefa.lon, ciDefa.lat);
+      us.objProgArc = npO;
+      us.fProgRAMC = GetCheck(dxPr_pc);
+      SetCI(ciTran, mon, day, yea, tim, dst, zon, ciDefa.lon, ciDefa.lat);
       is.JDp = MdytszToJulian(MonT, DayT, YeaT, TimT, ciDefa.dst, ciDefa.zon);
       wi.fCast = fTrue;
     }
@@ -2478,7 +2625,7 @@ flag API DlgChart(HWND hdlg, uint message, WORD wParam, LONG lParam)
     SetCheck(dxCh_j0, us.fInfluenceSign);
     SetEditN(deCh_L,  us.nAstroGraphStep);
     SetCheck(dxCh_L0, us.fLatitudeCross);
-    sprintf(sz, "%d %s", us.nAstroGraphDist, us.fEuroDist ? "km" : "mi");
+    sprintf(sz, "%d%s", us.nAstroGraphDist, us.fEuroDist ? "km" : "mi");
     SetEdit(deCh_L2, sz);
     SetCheck(dxCh_Ey, us.nEphemYears != 0);
     SetEditN(deCh_P,  us.nArabicParts);
@@ -2508,6 +2655,7 @@ flag API DlgChart(HWND hdlg, uint message, WORD wParam, LONG lParam)
     for (i = 0; i < ddMax; i++)
       SetCombo(dcCh_v3, rgszDecan[i]);
     SetEdit(dcCh_v3, rgszDecan[us.fListDecan ? us.nDecanType : 0]);
+    SetEditR(hdlg, deCh_rc0, us.rRatio, 6);
     return fTrue;
 
   case WM_COMMAND:
@@ -2519,7 +2667,7 @@ flag API DlgChart(HWND hdlg, uint message, WORD wParam, LONG lParam)
       nn = GetEditN(hdlg, deCh_Nl);
       yb = GetEditN(hdlg, deCh_Yb);
       EnsureN(nw, FValidWheel(nw), "wheel row");
-      EnsureN(nl, FValidAstrograph(nl), "astro-graph step");
+      EnsureN(nl, FValidAstrograph(nl), "astrocartography step");
       EnsureN(nl2, nl2 >= 0, "latitude crossing count");
       EnsureN(np, FValidPart(np), "Arabic part");
       EnsureN(nn, nn >= 0, "nearest city count");
@@ -2553,6 +2701,7 @@ flag API DlgChart(HWND hdlg, uint message, WORD wParam, LONG lParam)
       for (i = 1; i < asMax; i++)
         if (FMatchSz(sz, rgszSort[i]))
           us.nAspectSort = i;
+      us.rRatio = GetEditR(hdlg, deCh_rc0);
       GetEdit(dcCh_v3, sz);
       for (i = 0; i < ddMax; i++)
         if (FMatchSz(sz, rgszDecan[i]))
@@ -2575,12 +2724,15 @@ flag API DlgChart(HWND hdlg, uint message, WORD wParam, LONG lParam)
 
 
 CONST char *rgszFontDisp[cFont] = {szAppNameCore, "Wingdings", "Astro",
-  "Enigma", "Hamburg", "Astronomicon", "Courier New", "Consolas", "Arial",
-  "Hank's Nakshatra"};
+  "Enigma", "Hamburg", "Astronomicon", "StarFont", "StarFont Serif",
+  "Hank's Nakshatra", "Arial", "Courier New", "Consolas", "Lucida",
+  "Cascadia"};
 CONST char *rgszCityColor[6] = {"None", "Region", "Region+State",
   "Generic Zone", "Current Zone", "Rainbow"};
-CONST char *rgszWheelCorner[6] = {"None", "Spider Web", "Moire Pattern",
-  "Rays 1", "Rays 1.2", "Rays 12345"};
+CONST char *rgszWheelCorner[7] = {"None", "Spider Web", "Moire Pattern",
+  "Rays 1", "Rays 1,2", "Rays 12345", "Hearts"};
+CONST char *rgszDecaFill[8] = {"None", "Standard", "Rainbow RGB",
+  "Rainbow RYB", "Ruler Sign", "Ruler House", "7 Rays Sign", "7 Rays House"};
 
 // Processing function for the graphic settings dialog, as brought up with the
 // Graphics / Graphics Settings menu command.
@@ -2589,14 +2741,14 @@ flag API DlgGraphics(HWND hdlg, uint message, WORD wParam, LONG lParam)
 {
   char sz[cchSzMax];
   int nx, ny, ns, nS, ng, nxz, nwn, nx1, nyxv, is, i, j;
-  real rI, ryxs, rxw, rxg;
+  real ryxs, rxw, rxg;
 
   switch (message) {
   case WM_INITDIALOG:
     SetEditN(deGr_Xw_x, gs.xWin);
     SetEditN(deGr_Xw_y, gs.yWin);
     SetCheck(dxGr_XQ, gs.fKeepSquare);
-    for (is = 100; is <= 400; is += 50) {
+    for (is = 100; is <= MAXSCALE; is += 50) {
       sprintf(sz, "%d", is);
       if (is % 100 == 0)
         SetCombo(dcGr_Xs, sz);
@@ -2604,11 +2756,7 @@ flag API DlgGraphics(HWND hdlg, uint message, WORD wParam, LONG lParam)
     }
     SetEditN(dcGr_Xs, gs.nScale);
     SetEditN(dcGr_XSS, gs.nScaleText);
-    for (is = 25; is <= 100; is += 25) {
-      sprintf(sz, "%.1f", (real)is);
-      SetCombo(dcGr_XI1, sz);
-    }
-    SetEditR(hdlg, dcGr_XI1, gs.rBackPct, 1);
+    SetCheck(dxGr_XQ0, gs.fAutoScale);
     SetEditN(deGr_YXg, gs.nGridCell);
     SetEditN(deGr_YXj, gs.cspace);
     if (gs.objTrack >= 0)
@@ -2616,10 +2764,10 @@ flag API DlgGraphics(HWND hdlg, uint message, WORD wParam, LONG lParam)
     else
       SetEdit(deGr_XZ, "None");
     SetEditR(hdlg, deGr_YXS, gs.rspace, -6);
-    SetEditR(hdlg, deGr_XW, gs.rRot, 2);
-    SetEditR(hdlg, deGr_XG, gs.rTilt, 2);
+    SetEditR(hdlg, deGr_XW, gs.rRot, -3);
+    SetEditR(hdlg, deGr_XG, gs.rTilt, -3);
     SetCheck(dxGr_XP0, gs.fSouth);
-    SetCheck(dxGr_XW0, gs.fMollewide);
+    SetCheck(dxGr_XW0, gs.fMollweide);
     SetEditN(deGr_WN, wi.nTimerDelay);
     SetCheck(dxGr_XN, gs.fAnimMap);
     SetCheck(dxGr_Wn, wi.fNoUpdate);
@@ -2628,11 +2776,13 @@ flag API DlgGraphics(HWND hdlg, uint message, WORD wParam, LONG lParam)
     SetRadio(gs.objLeft > 0 ? dr02 :
       (gs.objLeft < 0 ? dr03 : dr01), dr01, dr03);
     SetEdit(deGr_X1, szObjName[gs.objLeft == 0 ? oSun : NAbs(gs.objLeft)-1]);
-    for (i = 0; i < 6; i++)
-      SetCombo(dcGr_YXv, rgszWheelCorner[i]);
+    for (i = 0; i < 7; i++)
+      SetCombo(dcGr_YXv, rgszWheelCorner[i < 3 ? i : (i == 3 ? 6 : i-1)]);
     SetEdit(dcGr_YXv, rgszWheelCorner[gs.nDecaType]);
     SetEditN(deGr_YXv, gs.nDecaSize);
-    SetRadio(dr04 + gs.nDecaFill, dr04, dr07);
+    for (i = 0; i < 8; i++)
+      SetCombo(dcGr_Xv, rgszDecaFill[i]);
+    SetEdit(dcGr_Xv, rgszDecaFill[gs.nDecaFill]);
     for (i = dcGr_Xf0; i <= dcGr_Xf5; i++)
       for (j = 0; j < cFont; j++) {
         if (rgszFontAllow[i-dcGr_Xf0][j] < '0')
@@ -2663,7 +2813,6 @@ flag API DlgGraphics(HWND hdlg, uint message, WORD wParam, LONG lParam)
       ny = GetEditN(hdlg, deGr_Xw_y);
       ns = GetEditN(hdlg, dcGr_Xs);
       nS = GetEditN(hdlg, dcGr_XSS);
-      rI = GetEditR(hdlg, dcGr_XI1);
       ng = GetEditN(hdlg, deGr_YXg);
       GetEdit(deGr_XZ, sz); nxz = NParseSz(sz, pmObject);
       ryxs = GetEditR(hdlg, deGr_YXS);
@@ -2676,7 +2825,6 @@ flag API DlgGraphics(HWND hdlg, uint message, WORD wParam, LONG lParam)
       EnsureN(ny, FValidGraphY(ny), "vertical size");
       EnsureN(ns, FValidScale(ns), "character scale");
       EnsureN(nS, FValidScaleText(nS), "text scale");
-      EnsureR(rI, FValidBackPct(rI), "background transparency");
       EnsureN(ng, FValidGrid(ng), "grid cell");
       EnsureN(nxz, FValidTelescope(nxz), "telescope planet");
       EnsureR(ryxs, FValidZoom(ryxs), "telescope zoom");
@@ -2692,7 +2840,7 @@ flag API DlgGraphics(HWND hdlg, uint message, WORD wParam, LONG lParam)
       }
       gs.fKeepSquare = GetCheck(dxGr_XQ);
       gs.nScale = ns; gs.nScaleText = nS;
-      gs.rBackPct = rI;
+      gs.fAutoScale = GetCheck(dxGr_XQ0);
       gs.nGridCell = ng;
       i = GetEditN(hdlg, deGr_YXj);
       if (gs.cspace != i) {
@@ -2701,30 +2849,33 @@ flag API DlgGraphics(HWND hdlg, uint message, WORD wParam, LONG lParam)
           DeallocateP(gi.rgspace);
           gi.rgspace = NULL;
         }
-        gi.ispace = 0;
       }
       gs.objTrack = nxz;
       gs.rspace = ryxs;
       gs.rRot = rxw; gs.rTilt = rxg;
-      if (wi.nTimerDelay != (UINT)nwn) {
+      if (wi.nTimerDelay != nwn) {
         wi.nTimerDelay = nwn;
         if (wi.lTimer != 0)
           KillTimer(wi.hwnd, 1);
         wi.lTimer = SetTimer(wi.hwnd, 1, wi.nTimerDelay, NULL);
       }
       gs.fSouth = GetCheck(dxGr_XP0);
-      gs.fMollewide = GetCheck(dxGr_XW0);
+      gs.fMollweide = GetCheck(dxGr_XW0);
       gs.fAnimMap = GetCheck(dxGr_XN);
       wi.fNoUpdate = GetCheck(dxGr_Wn);
       gs.nAllStar = (GetCheck(dxGr_XU2) << 1) | GetCheck(dxGr_XU1);
       gs.objLeft = GetCheck(dr01) ? 0 : (GetCheck(dr02) ? nx1+1 : -nx1-1);
       GetEdit(dcGr_YXv, sz);
-      for (i = 0; i < 6; i++)
-        if (NCompareSzI(sz, rgszWheelCorner[i]) == 0)
+      for (i = 0; i < 7; i++)
+        if (FEqSzI(sz, rgszWheelCorner[i]))
           break;
-      gs.nDecaType = i < 6 ? i : 0;
+      gs.nDecaType = i < 7 ? i : 0;
       gs.nDecaSize = nyxv;
-      gs.nDecaFill = GetRadio(hdlg, dr04, dr07);
+      GetEdit(dcGr_Xv, sz);
+      for (i = 0; i < 8; i++)
+        if (FEqSzI(sz, rgszDecaFill[i]))
+          break;
+      gs.nDecaFill = i < 8 ? i : 0;
       for (i = dcGr_Xf0; i <= dcGr_Xf5; i++) {
         GetEdit(i, sz);
         // Astro font in slot #2 gets checked first, since it's a substring.
@@ -2745,8 +2896,9 @@ flag API DlgGraphics(HWND hdlg, uint message, WORD wParam, LONG lParam)
         case dcGr_Xf5: gs.nFontNak = j; break;
         }
       }
-      gs.nFontAll = gs.nFontTxt*100000 + gs.nFontSig*10000 +
-        gs.nFontHou*1000 + gs.nFontObj*100 + gs.nFontAsp*10 + gs.nFontNak;
+      gs.nFontAll = gs.nFontTxt*0x100000 + gs.nFontSig*0x10000 +
+        gs.nFontHou*0x1000 + gs.nFontObj*0x100 + gs.nFontAsp*0x10 +
+        gs.nFontNak;
       if (gs.nFontAll != 0)
         gi.nFontPrev = gs.nFontAll;
       gs.nGlyphCap = GetRadio(hdlg, drg01, drg02) + 1;
@@ -2757,7 +2909,7 @@ flag API DlgGraphics(HWND hdlg, uint message, WORD wParam, LONG lParam)
       gs.nGlyphEri = GetRadio(hdlg, drg12, drg13) + 1;
       GetEdit(dcGr_XL, sz);
       for (i = 0; i < 6; i++)
-        if (NCompareSzI(sz, rgszCityColor[i]) == 0)
+        if (FEqSzI(sz, rgszCityColor[i]))
           break;
       if (i <= 0)
         gs.fLabelAsp = fFalse;

@@ -1,8 +1,8 @@
 /*
-** Astrolog (Version 7.80) File: astrolog.cpp
+** Astrolog (Version 8.00) File: astrolog.cpp
 **
 ** IMPORTANT NOTICE: Astrolog and all chart display routines and anything
-** not enumerated below used in this program are Copyright (C) 1991-2025 by
+** not enumerated below used in this program are Copyright (C) 1991-2026 by
 ** Walter D. Pullen (Astara@msn.com, http://www.astrolog.org/astrolog.htm).
 ** Permission is granted to freely use, modify, and distribute these
 ** routines provided these credits and notices remain unmodified with any
@@ -48,7 +48,7 @@
 ** Initial programming 8/28-30/1991.
 ** X Window graphics initially programmed 10/23-29/1991.
 ** PostScript graphics initially programmed 11/29-30/1992.
-** Last code change made 6/19/2025.
+** Last code change made 5/28/2026.
 */
 
 #include "astrolog.h"
@@ -67,10 +67,11 @@ void InitColors(void)
   int *rgObjRuler = ruler1, i, k;
 
   // Figure out which rulership set to use for "Element" color.
+  // Order: Standard rulership, esoteric, Hierarchical, exaltation, Ray.
   if (ignore7[rrStd]) {
-    if      (!ignore7[rrExa]) rgObjRuler = exalt;
-    else if (!ignore7[rrEso]) rgObjRuler = rgObjEso1;
+    if      (!ignore7[rrEso]) rgObjRuler = rgObjEso1;
     else if (!ignore7[rrHie]) rgObjRuler = rgObjHie1;
+    else if (!ignore7[rrExa]) rgObjRuler = exalt;
     else if (!ignore7[rrRay]) rgObjRuler = NULL;
   }
 
@@ -80,10 +81,18 @@ void InitColors(void)
     if (k == kRay || rgObjRuler == NULL)
       k = kRayA[rgObjRay[i]];
     else if (k == kElement)
-      k = kElemA[(rgObjRuler[i]-1) & 3];
-    else if (k == kPlanet)
+      k = rgObjRuler[i] > 0 ? kElemA[(rgObjRuler[i]-1) & 3] : kLtGray;
+    else if (k == kPlanet) {
+      // Moon colors are dim versions of the color of the planet they orbit.
       k = kObjA[!FBetween(i, cobLo, cobHi) ? ObjOrbit(i) :
-        oJup + (i - cobLo)] ^ 8;
+        oJup + (i - cobLo)];
+      if (FBetween(k, 0, cColor-1))
+        k ^= 8;
+      else {
+        k = KvFromKi(k);
+        k = -(int)Rgb(RgbR(k) >> 1, RgbG(k) >> 1, RgbB(k) >> 1);
+      }
+    }
     kObjA[i] = k;
   }
 
@@ -91,7 +100,37 @@ void InitColors(void)
   EnsureStarBright();
   k = kObjU[starLo];
   for (i = starLo; i <= starHi; i++)
-    kObjA[i] = (k >= kNull ? KStarA(rStarBright[i-starLo+1]) : k);
+    kObjA[i] = (k >= cColor2 ? KStarA(rStarBright[i-starLo+1]) : k);
+}
+
+
+// A planet's ruler has changed to a new sign. Adjust appropriately the
+// reverse table of mapping a sign to which planet(s) rule it.
+
+void AdjustRulership(int *rgRules1, int *rgRules2, int sig, int obj,
+  flag fPrimary)
+{
+  int i;
+
+  if (sig > 0) {
+    // Set the primary or secondary ruler, sliding existing ruler if needed.
+    if (rgRules1[sig] != obj) {
+      if (fPrimary) {
+        rgRules2[sig] = rgRules1[sig];
+        rgRules1[sig] = obj;
+      } else
+        rgRules2[sig] = obj;
+    }
+  } else {
+    // A planet is set to rule nothing. Make sure no sign is ruled by it.
+    for (i = 1; i <= cSign; i++) {
+      if (rgRules1[i] == obj && rgRules2[i] >= 0) {
+        rgRules1[i] = rgRules2[i];
+        rgRules2[i] = -1;
+      } else if (rgRules2[i] == obj)
+        rgRules2[i] = -1;
+    }
+  }
 }
 
 
@@ -698,11 +737,12 @@ int NProcessSwitchesRare(int argc, char **argv, int pos,
     if (FErrorValN("Ye", !FCust(i), i, 1))
       return tcError;
     i -= custLo;
-    j = (ch1 == 'b') + (ch1 == 'O')*2 + (ch1 == 'm')*3 + (ch1 == 'j')*4;
+    j = (ch1 == 'b') + (ch1 == 'O')*2 + (ch1 == 'm')*3 + (ch1 == 'j')*4 +
+      (ch1 == 'A')*5;
     if (j > 0)
       ch1 = ch2;
     k = (j == 2 ? NParseSz(argv[2], pmObject) : NFromSz(argv[2]));
-    if (FErrorValN("Ye", k < (int)(j != 2) && j < 4, k, 2))
+    if (FErrorValN("Ye", !FValidCustom(k, j), k, 2))
       return tcError;
     rgObjSwiss[i] = k;
     rgTypSwiss[i] = j;
@@ -711,6 +751,8 @@ int NProcessSwitchesRare(int argc, char **argv, int pos,
     rgFlgSwiss[i] = 0;
     if (j <= 1)
       SwissGetObjName(szName, j <= 0 ? -k : k);
+    else if (j == 5)
+      sprintf(szName, "%s", FValidPart(k) ? ai[k-1].name : szObjUnknown);
     else {
       if (j == 3)
         k = ObjMoons(k);
@@ -805,6 +847,7 @@ int NProcessSwitchesRare(int argc, char **argv, int pos,
     } else if (ch1 == 'i') {
       InitRestrictions(fFalse);
       AdjustRestrictions();
+      AdjustAspectCount();
       break;
     }
     if (FErrorArgc("YR", argc, 2 + (ch1 == 'Z')*2 + (ch1 == '7')*3))
@@ -831,6 +874,11 @@ int NProcessSwitchesRare(int argc, char **argv, int pos,
       ignorez[arDes] = NFromSz(argv[3]) != 0;
       ignorez[arIC]  = NFromSz(argv[4]) != 0;
       darg += 4;
+      break;
+    } else if (ch1 == 'p') {
+      ignorez[arVer] = i != 0;
+      ignorez[arAnt] = j != 0;
+      darg += 2;
       break;
     } else if (ch1 == '7') {
       ignore7[rrStd] = i != 0;
@@ -944,33 +992,39 @@ int NProcessSwitchesRare(int argc, char **argv, int pos,
         return tcError;
     }
     if (ch1 == chNull) {
+      if (j <= 0)
+        j = k;
+      if (j == k)
+        k = 0;
       ruler1[i] = j;
       ruler2[i] = k;
       if (FBetween(i, 1, oPlu)) {
-        if (j != 0)
-          rules[j] = i;
-        if (k != 0)
-          rules[k] = i;
+        AdjustRulership(rules, rules2, k, i, fFalse);
+        AdjustRulership(rules, rules2, j, i, fTrue);
       }
     } else if (ch1 == '0') {
       exalt[i] = j;
     } else if (ch2 != '0') {
+      if (j <= 0)
+        j = k;
+      if (j == k)
+        k = 0;
       rgObjEso1[i] = j;
       rgObjEso2[i] = k;
       if (FBetween(i, 0, oPlu) || i == oVul) {
-        if (j != 0)
-          rgSignEso1[j] = i;
-        if (k != 0)
-          rgSignEso1[k] = i;
+        AdjustRulership(rgSignEso1, rgSignEso2, k, i, fFalse);
+        AdjustRulership(rgSignEso1, rgSignEso2, j, i, fTrue);
       }
     } else {
+      if (j <= 0)
+        j = k;
+      if (j == k)
+        k = 0;
       rgObjHie1[i] = j;
       rgObjHie2[i] = k;
       if (FBetween(i, 0, oPlu) || i == oVul) {
-        if (j != 0)
-          rgSignHie1[j] = i;
-        if (k != 0)
-          rgSignHie1[k] = i;
+        AdjustRulership(rgSignHie1, rgSignHie2, k, i, fFalse);
+        AdjustRulership(rgSignHie1, rgSignHie2, j, i, fTrue);
       }
     }
     darg += 3 - (ch1 == '0');
@@ -1046,10 +1100,12 @@ int NProcessSwitchesRare(int argc, char **argv, int pos,
     if (FErrorArgc("Yk", argc, 2 + 2*(ch1 == 'C')))
       return tcError;
     if (ch1 == 'C') {
-      kElemA[eFir] = NParseSz(argv[1], pmColor) & (cColor-1);
-      kElemA[eEar] = NParseSz(argv[2], pmColor) & (cColor-1);
-      kElemA[eAir] = NParseSz(argv[3], pmColor) & (cColor-1);
-      kElemA[eWat] = NParseSz(argv[4], pmColor) & (cColor-1);
+      for (k = 0; k < cElem; k++) {
+        l = NParseSz(argv[1+k], pmColor);
+        if (FErrorValN("Yk", !FValidColorA(l), l, 1+k))
+          return tcError;
+        kElemA[k] = l;
+      }
       darg += 4;
       break;
     }
@@ -1067,8 +1123,13 @@ int NProcessSwitchesRare(int argc, char **argv, int pos,
       return tcError;
     lpn = ch1 == 'O' ? kObjU : (ch1 == 'A' ? kAspA : (ch1 == '7' ? kRayA :
       (ch1 == '0' ? kRainbowA : kMainA)));
-    for (k = i; k <= j; k++)
-      lpn[k] = NParseSz(argv[3+k-i], pmColor) & (ch1 != 'O' ? cColor-1 : ~0);
+    for (k = i; k <= j; k++) {
+      l = NParseSz(argv[3+k-i], pmColor);
+      if (FErrorValN("Yk",
+        !FBetween(l, -0xffffff, ch1 != 'O' ? cColor2-1 : kMax-1), l, 0))
+        return tcError;
+      lpn[k] = l;
+    }
     darg += 3+j-i;
     break;
 
@@ -1177,7 +1238,7 @@ int NProcessSwitchesRare(int argc, char **argv, int pos,
       PrintSzFormat(argv[1], fTrue);
       darg++;
       break;
-    } 
+    }
 #ifdef INTRPRET
     else if (ch1 == 'I') {
       if (FErrorArgc("YYI", argc, 1))
@@ -1347,7 +1408,7 @@ flag FProcessSwitches(int argc, char **argv)
     case 'w':
       if (ch1 == '0')
         SwitchF(us.fWheelReverse);
-      if (argc > 1 && (i = NFromSz(argv[1]))) {
+      if (argc > 1 && ((i = NFromSz(argv[1])) > 0 || FNumCh(argv[1][0]))) {
         argc--; argv++;
         if (FErrorValN("w", !FValidWheel(i), i, 0))
           return fFalse;
@@ -1851,7 +1912,10 @@ flag FProcessSwitches(int argc, char **argv)
           return fFalse;
         us.nScreenWidth = i;
       }
-      SwitchF(us.fInterpret);
+      if (ch1 != '0')
+        SwitchF(us.fInterpret);
+      else
+        SwitchF(us.fSabian);
       break;
 
     // Switches which affect how the chart parameters are obtained:
@@ -1992,6 +2056,16 @@ flag FProcessSwitches(int argc, char **argv)
         break;
       }
 #endif
+      else if (ch1 == 'Z') {
+        if (FErrorArgc("zZ", argc, 2))
+          return fFalse;
+        rT = RParseSz(argv[1], pmZon);
+        if (FErrorValR("z", !FValidZon(rT), rT, 1))
+          return fFalse;
+        AdjustTimeZone(&ciCore, rT, RParseSz(argv[2], pmDst));
+        argc -= 2; argv += 2;
+        break;
+      }
       if (argc <= 1 || RParseSz(argv[1], pmZon) == rLarge)
         ZZ -= 1.0;
       else {
@@ -2135,7 +2209,7 @@ flag FProcessSwitches(int argc, char **argv)
         argc--; argv++;
         break;
       } else if (ch1 == '0' || ch1 == 'd' || ch1 == 'l' ||
-        ch1 == 'a' || ch1 == 'q' || ch1 == 'x')
+        ch1 == 'a' || ch1 == 'q' || ch1 == 'c' || ch1 == 'x')
         us.nWriteFormat = FSwitchF2(us.nWriteFormat == ch1) * ch1;
       SwitchF(us.fWriteFile);
       FCloneSz(argv[1], &is.szFileOut);
@@ -2176,8 +2250,7 @@ flag FProcessSwitches(int argc, char **argv)
             SwitchF(ignorea[i]);
             argc--; argv++;
           }
-        for (us.nAsp = cAspect; us.nAsp > 0 && ignorea[us.nAsp]; us.nAsp--)
-          ;
+        AdjustAspectCount();
         break;
       }
       if (ch1 == 'O') {
@@ -2201,6 +2274,9 @@ flag FProcessSwitches(int argc, char **argv)
       else if (ch1 == '1')
         for (i = 0; i <= cObj; i++)
           pch[i] = fFalse;
+      else if (ch1 == '2')
+        for (i = 0; i <= cObj; i++)
+          pch[i] = ((char *)(pch == (char *)ignore2 ? ignore : ignore2))[i];
       else if (ch1 == 'C')
         for (i = cuspLo; i <= cuspHi; i++)
           SwitchF(pch[i]);
@@ -2346,6 +2422,9 @@ flag FProcessSwitches(int argc, char **argv)
       } else if (ch1 == '1') {
         SwitchF(us.fSecond1K);
         break;
+      } else if (ch1 == '2') {
+        SwitchF(us.fSecondHide);
+        break;
       } else if (ch1 == 'j')
         us.nSwissEph = FSwitchF(us.nSwissEph == 2) * 2;
       else if (ch1 == 's')
@@ -2382,7 +2461,7 @@ flag FProcessSwitches(int argc, char **argv)
       }
 #ifdef WIN
       if (argc <= 1 && wi.fSaverCfg)
-        return fFalse;
+        return fTrue;
 #endif
       if (FErrorArgc("c", argc, 1))
         return fFalse;
@@ -2434,14 +2513,17 @@ flag FProcessSwitches(int argc, char **argv)
     case 'p':
       us.nProgress = (ch1 == '0') + 2*(ch1 == '1');
       if (us.nProgress)
-        ch1 = argv[0][++ich];
-      if (fAnd) {
+        ch1 = ch2;
+      if (fAnd && ch1 != 'c') {
         us.fProgress = fFalse;
         break;
       } else if (ch1 == 'd') {
         if (FErrorArgc("pd", argc, 1))
           return fFalse;
-        rT = RFromSz(argv[1]);
+        i = (ChCap(argv[1][0]) == 'X');
+        rT = RFromSz(argv[1] + i);
+        if (i != 0 && rT != 0.0)
+          rT = rDayInYear / rT;
         if (FErrorValR("pd", rT == 0.0, rT, 0))
           return fFalse;
         us.rProgDay = rT;
@@ -2455,6 +2537,18 @@ flag FProcessSwitches(int argc, char **argv)
           return fFalse;
         us.rProgCusp = rT;
         argc--; argv++;
+        break;
+      } else if (ch1 == 'O') {
+        if (FErrorArgc("pO", argc, 1))
+          return fFalse;
+        i = NParseSz(argv[1], pmObject);
+        if (FErrorValN("pO", !FValidProgArc(i), i, 0))
+          return fFalse;
+        us.objProgArc = i;
+        argc--; argv++;
+        break;
+      } else if (ch1 == 'c') {
+        SwitchF(us.fProgRAMC);
         break;
       }
       SwitchF(us.fProgress);
@@ -2584,7 +2678,7 @@ flag FProcessSwitches(int argc, char **argv)
         k = NParseSz(argv[3], pmObject);
         if (FErrorValN("Fm", !FItem(k), k, 3))
           return fFalse;
-        force[i] = (real)-(j * cObj + k + 1);
+        force[i] = (real)-(j*objMax + k + 1);
       }
       AdjustRestrictions();
       argc -= 3; argv += 3;
@@ -2676,10 +2770,15 @@ flag FProcessSwitches(int argc, char **argv)
         return fFalse;
       cp1 = cp0;
       if (i > 2) {
-        us.nRatio1 = NFromSz(argv[3]);
-        us.nRatio2 = NFromSz(argv[4]);
-        if (us.nRatio1 == us.nRatio2)
-          us.nRatio1 = us.nRatio2 = 1;
+        j = NFromSz(argv[3]);
+        if (j < 0)
+          us.rRatio = RFromSz(argv[4]);
+        else {
+          k = NFromSz(argv[4]);
+          if (j + k == 0)
+            j = k = 1;
+          us.rRatio = (real)j / (real)(j + k);
+        }
       }
       argc -= i; argv += i;
       break;
@@ -2822,7 +2921,7 @@ flag FProcessSwitches(int argc, char **argv)
         SwitchF(us.fExpOff);
         break;
       }
-      i = 1 + (ch1 == 'M' || ch1 == '2');
+      i = 1 + (ch1 == 'M' || ch1 == '2' || ch1 == '3');
       if (FErrorArgc("~", argc, i))
         return fFalse;
       ppch = NULL;
@@ -2872,8 +2971,11 @@ flag FProcessSwitches(int argc, char **argv)
         ppch = &us.szExpFontAsp;
       else if (ch1 == 'F' && ch2 == 'N')
         ppch = &us.szExpFontNak;
+      else if (ch1 == 'F' && ch2 == 'T')
+        ppch = &us.szExpFontTxt;
       else if (ch1 == 'v')
-        ppch = (ch2 != '3' ? &us.szExpSort : &us.szExpDecan);
+        ppch = (ch2 != '3' ? &us.szExpSort : (ch2 == chNull ||
+        argv[0][ich+2] != '0' ? &us.szExpDecan : &us.szExpDecan2));
       else if (ch1 == 's' && ch2 == 'd')
         ppch = &us.szExpDegree;
       else if (ch1 == 'U' && ch2 == 'x')
@@ -2888,6 +2990,8 @@ flag FProcessSwitches(int argc, char **argv)
         ppch = &us.szExpIntA;
       else if (ch1 == 'I' && ch2 == 'A')
         ppch = &us.szExpIntA2;
+      else if (ch1 == 'X' && ch2 == 'v')
+        ppch = &us.szExpCorner;
       else if (ch1 == 'X' && ch2 == 'L')
         ppch = &us.szExpCity;
       else if (ch1 == 'X' && ch2 == 't')
@@ -2926,6 +3030,11 @@ flag FProcessSwitches(int argc, char **argv)
         if (FErrorValN("~2", j < 0, j, 1))
           return fFalse;
         ExpSetString(j, argv[2], ch2 == '0');
+      } else if (ch1 == '3') {
+        j = NFromSz(argv[1]);
+        if (FErrorValN("~3", j < 0, j, 1))
+          return fFalse;
+        ExpSetNums(j, argv[2]);
       } else if (FErrorSubswitch("~", ch1, ch1 != chNull))
         return fFalse;
       else
@@ -3084,6 +3193,15 @@ void InitProgram()
   Assert(rgcmdMode[gKeystroke]  == cmdHelpKeystroke);
   Assert(rgcmdMode[gCredit]     == cmdHelpCredit);
 #endif
+#ifdef DEBUG
+  // Ensure planets and planet COB's have same data.
+  for (i = 0; i < cCOB; i++) {
+    Assert(rObjDist[i + oJup] == rObjDist[i + oJuC]);
+    Assert(rObjYear[i + oJup] == rObjYear[i + oJuC]);
+    Assert(rObjDiam[i + oJup] == rObjDiam[i + oJuC]);
+    Assert(rObjDay[i + oJup] == rObjDay[i + oJuC]);
+  }
+#endif
 }
 
 
@@ -3193,8 +3311,10 @@ void FinalizeProgram(flag fSkip)
   DeallocatePIf(us.szExpFontObj);
   DeallocatePIf(us.szExpFontAsp);
   DeallocatePIf(us.szExpFontNak);
+  DeallocatePIf(us.szExpFontTxt);
   DeallocatePIf(us.szExpSort);
   DeallocatePIf(us.szExpDecan);
+  DeallocatePIf(us.szExpDecan2);
   DeallocatePIf(us.szExpDegree);
   DeallocatePIf(us.szExpStar);
   DeallocatePIf(us.szExpAst);
@@ -3203,6 +3323,7 @@ void FinalizeProgram(flag fSkip)
   DeallocatePIf(us.szExpIntV2);
   DeallocatePIf(us.szExpIntA);
   DeallocatePIf(us.szExpIntA2);
+  DeallocatePIf(us.szExpCorner);
   DeallocatePIf(us.szExpCity);
   DeallocatePIf(us.szExpSidebar);
   DeallocatePIf(us.szExpKey);
@@ -3256,6 +3377,7 @@ void FinalizeProgram(flag fSkip)
   DeallocatePIf(wi.bmpWin.rgb);
 #endif
 #ifdef WIN
+  DeallocatePIf(wi.bmpSmooth.rgb);
   if (ofn.lpstrFile != szFileName)
     DeallocatePIf(ofn.lpstrFile);
 #endif
@@ -3312,14 +3434,14 @@ int main()
 #endif
 
 LBegin:
-  if (us.fNoSwitches) {                             // Go prompt for switches
+  if (is.fNoSwitches) {                             // Go prompt for switches
     argc = NPromptSwitches(szCommandLine, rgsz);    // if don't have them.
     argv = rgsz;
   }
   is.szProgName = argv[0];
   if (FProcessSwitches(argc, argv)) {
-    if (!us.fNoSwitches && us.fLoopInit) {
-      us.fNoSwitches = fTrue;
+    if (!is.fNoSwitches && us.fLoopInit) {
+      is.fNoSwitches = fTrue;
       goto LBegin;
     }
     Action();
@@ -3327,7 +3449,7 @@ LBegin:
   if (us.fLoop || us.fNoQuit) {  // If -Q in effect loop back and get switch
     PrintL2();                   // info for another chart to display.
     InitVariables();
-    us.fLoop = us.fNoSwitches = fTrue;
+    us.fLoop = is.fNoSwitches = fTrue;
     goto LBegin;
   }
   Terminate(tcOK);    // The only standard place to exit Astrolog is here.

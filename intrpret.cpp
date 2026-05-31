@@ -1,8 +1,8 @@
 /*
-** Astrolog (Version 7.80) File: intrpret.cpp
+** Astrolog (Version 8.00) File: intrpret.cpp
 **
 ** IMPORTANT NOTICE: Astrolog and all chart display routines and anything
-** not enumerated below used in this program are Copyright (C) 1991-2025 by
+** not enumerated below used in this program are Copyright (C) 1991-2026 by
 ** Walter D. Pullen (Astara@msn.com, http://www.astrolog.org/astrolog.htm).
 ** Permission is granted to freely use, modify, and distribute these
 ** routines provided these credits and notices remain unmodified with any
@@ -48,7 +48,7 @@
 ** Initial programming 8/28-30/1991.
 ** X Window graphics initially programmed 10/23-29/1991.
 ** PostScript graphics initially programmed 11/29-30/1992.
-** Last code change made 6/19/2025.
+** Last code change made 5/28/2026.
 */
 
 #include "astrolog.h"
@@ -110,7 +110,8 @@ void FieldWord(CONST char *sz)
 
 
 // Display a general interpretation of what each sign of the zodiac, house,
-// and planet or object means. This is called to do the -HI switch table.
+// planet or object, and aspect means. This is called when printing the
+// interpretation table in the -HI switch.
 
 void InterpretGeneral(void)
 {
@@ -151,16 +152,6 @@ void InterpretGeneral(void)
     sprintf(sz, "%s.\n", szMindPart[i]); FieldWord(sz);
   }
   AnsiColor(kDefault);
-}
-
-
-// Display a general interpretation of what each aspect type means. This
-// is called when printing the interpretation table in the -HI switch.
-
-void InterpretAspectGeneral(void)
-{
-  char sz[cchSzMax];
-  int i;
 
   PrintL();
   FieldWord("Aspects are different relationships between planets.\n\n");
@@ -174,6 +165,21 @@ void InterpretAspectGeneral(void)
     if (szTherefore[i][0]) {
       sprintf(sz, "%s.", szTherefore[i]); FieldWord(sz);
     }
+    FieldWord(NULL);
+  }
+
+  if (!us.fSabian)
+    return;
+  AnsiColor(kDefault);
+  PrintL();
+  FieldWord("Sabian Symbols are images for each zodiac sign degree.\n\n");
+  for (i = 0; i < nDegMax; i++) {
+    j = SFromZ(i);
+    AnsiColor(kSignA(j));
+    FieldWord(szSignName[j]);
+    j = i - (j-1)*30;
+    sprintf(sz, "%d-%d:", j, j+1); FieldWord(sz);
+    sprintf(sz, "%s.", szSabian[i]); FieldWord(sz);
     FieldWord(NULL);
   }
   return;
@@ -190,6 +196,25 @@ void InterpretLocation(void)
   int i, j;
 
   PrintL();
+  if (us.fSabian) {
+    for (i = 0; i <= is.nObj; i++) {
+      if (ignore[i])
+        continue;
+      AnsiColor(kObjA[i]);
+      j = SFromZ(planet[i]);
+      sprintf(sz, "%s%s%s in %s",
+        i == oFor && szObjDisp[i] == szObjName[i] ? "Part of " : "",
+        szObjDisp[i],
+        i == oPal && szObjDisp[i] == szObjName[i] ? " Athena" : "",
+        szSignName[j]);
+      FieldWord(sz);
+      j = (int)planet[i] - (j-1)*30;
+      sprintf(sz, "%d-%d:", j, j+1); FieldWord(sz);
+      sprintf(sz, "%s.", szSabian[(int)planet[i]]); FieldWord(sz);
+      FieldWord(NULL);
+    }
+    return;
+  }
   for (i = 0; i <= is.nObj; i++) {
     if (ignore[i] || !FInterpretObj(i))
       continue;
@@ -339,13 +364,21 @@ void InterpretMidpoint(int x, int y)
   int n, i;
   real rDir;
 
-  if (!FInterpretObj(x) || !FInterpretObj(y))
+  if (!us.fSabian && (!FInterpretObj(x) || !FInterpretObj(y)))
     return;
   n = grid->n[y][x];
   AnsiColor(kSignA(n));
-  sprintf(sz, "%s midpoint %s in %s: The merging of %s's",
-    szObjDisp[x], szObjDisp[y], szSignName[n], szPerson0);
-  FieldWord(sz); FieldWord(szMindPart[x]);
+  sprintf(sz, "%s midpoint %s in %s%s", szObjDisp[x], szObjDisp[y],
+    szSignName[n], !us.fSabian ? ":" : ""); FieldWord(sz);
+  if (us.fSabian) {
+    i = (int)grid->v[y][x];
+    sprintf(sz, "%d-%d:", i, i+1); FieldWord(sz);
+    sprintf(sz, "%s.", szSabian[(n-1)*30 + i]); FieldWord(sz);
+    FieldWord(NULL);
+    return;
+  }
+  sprintf(sz, "The merging of %s's", szPerson0); FieldWord(sz);
+  FieldWord(szMindPart[x]);
   FieldWord("with their"); FieldWord(szMindPart[y]);
   FieldWord("is");
   // First 10 degrees or decan of sign is more emphasized by that sign.
@@ -367,6 +400,47 @@ void InterpretMidpoint(int x, int y)
   sprintf(sz, "%s.", szLifeArea[i]); FieldWord(sz);
   FieldWord(NULL);
 }
+
+
+#ifdef ARABIC
+// Print an interpretation for a particular Arabic part at the given location.
+// This is called from the DisplayArabic() routine.
+
+void InterpretArabic(int i, real deg, real lat, real dir)
+{
+  char sz[cchSzMax];
+  int h, j;
+
+  j = SFromZ(deg);
+  AnsiColor(kSignA(j));
+  if (us.fSabian) {
+    sprintf(sz, "Part of %s in %s", ai[i].name, szSignName[j]);
+    FieldWord(sz);
+    j = (int)deg - (j-1)*30;
+    sprintf(sz, "%d-%d:", j, j+1); FieldWord(sz);
+    sprintf(sz, "%s.", szSabian[(int)deg]); FieldWord(sz);
+    FieldWord(NULL);
+    return;
+  }
+  sprintf(sz, "%sPart of %s in %s", dir < 0.0 ? "Retrograde " : "",
+    ai[i].name, szSignName[j]);
+  FieldWord(sz);
+  h = NHousePlaceIn(deg, lat);
+  sprintf(sz, "and %d%s House:", h, szSuffix[h]); FieldWord(sz);
+  FieldWord("This placement is");
+  // First 10 degrees or decan of sign is more emphasized by that sign.
+  if ((int)deg % 30 < 10)
+    FieldWord("very");
+  sprintf(sz, "%s, and", szDesc[j]); FieldWord(sz);
+  sprintf(sz, "%s.", szDesire[j]); FieldWord(sz);
+  FieldWord("Most often this manifests");
+  if (dir < 0.0)
+    FieldWord("in an independent, backward, introverted manner, and");
+  FieldWord("in the area of life dealing with");
+  sprintf(sz, "%s.", szLifeArea[h]); FieldWord(sz);
+  FieldWord(NULL);
+}
+#endif
 
 
 // This is a subprocedure of ChartInDaySearch(). Print the interpretation for
@@ -565,16 +639,24 @@ void InterpretGridRelation(void)
 void InterpretMidpointRelation(int x, int y)
 {
   char sz[cchSzMax];
-  int n;
+  int n, i;
   real rDir;
 
-  if (!FInterpretObj(x) || !FInterpretObj(y))
+  if (!us.fSabian && (!FInterpretObj(x) || !FInterpretObj(y)))
     return;
   n = grid->n[x][y];
   AnsiColor(kSignA(n));
-  sprintf(sz, "%s midpoint %s in %s: The merging of %s's",
-    szObjDisp[x], szObjDisp[y], szSignName[n], szPerson1);
-  FieldWord(sz); FieldWord(szMindPart[x]);
+  sprintf(sz, "%s midpoint %s in %s%s", szObjDisp[x], szObjDisp[y],
+    szSignName[n], !us.fSabian ? ":" : ""); FieldWord(sz);
+  if (us.fSabian) {
+    i = (int)grid->v[x][y];
+    sprintf(sz, "%d-%d:", i, i+1); FieldWord(sz);
+    sprintf(sz, "%s.", szSabian[(n-1)*30 + i]); FieldWord(sz);
+    FieldWord(NULL);
+    return;
+  }
+  sprintf(sz, "The merging of %s's", szPerson1); FieldWord(sz);
+  FieldWord(szMindPart[x]);
   sprintf(sz, "with %s's", szPerson2); FieldWord(sz);
   FieldWord(szMindPart[y]); FieldWord("is");
   // First 10 degrees or decan of sign is more emphasized by that sign.
@@ -598,8 +680,8 @@ void InterpretMidpointRelation(int x, int y)
 CONST char *szAngle[cElem] = {"project", "feel within",
   "attract and receive", "be seen as"};
 
-// Print an interpretation for a latitude crossing in effect in an astro-graph
-// chart. This is called from the ChartAstroGraph() routine.
+// Print an interpretation for a latitude crossing in effect in an
+// astrocartography chart. This is called from the ChartAstroGraph() routine.
 
 void InterpretAstroGraph(int obj1, int cusp1, int obj2, int cusp2)
 {
@@ -608,7 +690,7 @@ void InterpretAstroGraph(int obj1, int cusp1, int obj2, int cusp2)
 
   if (!FInterpretObj(obj1) || !FInterpretObj(obj2))
     return;
-  FieldWord("Near this location"); 
+  FieldWord("Near this location");
   if (us.nRel >= rcNone) {
     FieldWord(szPerson0);
     FieldWord("can more easily");
@@ -638,45 +720,45 @@ CONST char *rgEsoRayArea[cRayArea] =
   {"Physical", "Astral", "Mental", "Personality", "Soul"};
 
 CONST char *rgEsoMantra1[cSign+1] = {"",
-  "Let form again be sought.",
-  "Let struggle be undismayed.",
-  "Let instability do its work.",
-  "Let isolation be the rule and yet the crowd exists.",
-  "Let other forms exist, I rule.",
-  "Let matter reign.",
-  "Let choice be made.",
-  "Let Maya flourish and let deception rule.",
-  "Let food be sought.",
-  "Let ambition rule and let the door stand wide.",
-  "Let desire in form be ruler.",
-  "Go forth into matter."};
+  "Let form again be sought",
+  "Let struggle be undismayed",
+  "Let instability do its work",
+  "Let isolation be the rule and yet the crowd exists",
+  "Let other forms exist, I rule",
+  "Let matter reign",
+  "Let choice be made",
+  "Let Maya flourish and let deception rule",
+  "Let food be sought",
+  "Let ambition rule and let the door stand wide",
+  "Let desire in form be ruler",
+  "Go forth into matter"};
 CONST char *rgEsoMantra2[cSign+1] = {"",
-  "I come forth and from the plane of mind I rule.",
-  "I see and when the eye is opened, all is light.",
-  "I see my other self, and in the waning of that self, I grow and glow.",
-  "I build a lighted house and therein dwell.",
-  "I am That, and That am I.",
-  "I am the mother and the child, I God, I matter am. "
-    "Christ in you, the hope of glory.",
-  "I choose the way which lies between the two great lines of force.",
-  "Warrior I am, and from the battle I emerge triumphant.",
-  "I see the goal, I reach that goal, and then I see another.",
-  "Lost am I in light supernal, yet on that light I turn my back.",
-  "Water of life am I, poured forth for thirsty men.",
-  "I leave the Father's house, and turning back, I save."};
+  "I come forth and from the plane of mind I rule",
+  "I see, and when the eye is opened, all is illumined",
+  "I recognize my other self and in the waning of that self I grow and glow",
+  "I build a lighted house and therein dwell",
+  "I am That and That am I",
+  "I am the Mother and the Child. I God, I matter am. "
+    "Christ in you, the hope of glory",
+  "I choose the way that leads between the two great lines of force",
+  "Warrior I am, and from the battle I emerge triumphant",
+  "I see the goal. I reach the goal and see another",
+  "Lost am I in light supernal, yet on that light I turn my back",
+  "Water of life am I, poured forth for thirsty men",
+  "I leave the Father's home and turning back, I save"};
 CONST char *rgEsoLight[cSign+1] = {"",
-  "The Light of Life Itself.",
-  "The penetrating Light of the Path.",
-  "The Light of Interplay.",
-  "The Light within the form.",
-  "The Light of the Soul.",
-  "The blended dual Light.",
-  "The Light that moves to rest.",
-  "The Light of Day.",
-  "A beam of directed, focused Light.",
-  "The Light of Initiation.",
-  "The Light that shines on Earth, across the sea.",
-  "The Light of the World."};
+  "The Light of Life Itself",
+  "The penetrating Light of the Path",
+  "The Light of Interplay",
+  "The Light within the form",
+  "The Light of the Soul",
+  "The blended dual Light",
+  "The Light that moves to rest",
+  "The Light of Day",
+  "A beam of directed, focused Light",
+  "The Light of Initiation",
+  "The Light that shines on Earth, across the sea",
+  "The Light of the World"};
 CONST char *rgEsoLabor[cSign+1] = {"",
   "Capture of the Man-eating Mares",
   "Capture of the Cretan Bull",
@@ -692,7 +774,7 @@ CONST char *rgEsoLabor[cSign+1] = {"",
   "Capture of the Red Cattle of Geryon"};
 CONST char *rgEsoLesson[cSign+1] = {"",
   "Mastering the right use of the mind and life force with unselfish intent, "
-    "and using the will to gain control and eliminate wrong thought, speech,"
+    "and using the will to gain control and eliminate wrong thought, speech, "
     "and actions",
   "Learning to intelligently express will impulsed by love, refining the "
     "will to good, and achieving harmony by fostering right human "
@@ -841,7 +923,7 @@ int InterpretEsoteric(flag fGetRays)
           if (k <= 0 || k == 3)
             nLin *= 2;
           if ((bod == 4 && k >= 3) || (bod < 4 && k < 3))
-            nLin *= 2;            
+            nLin *= 2;
           if (k <= 0 || k == 3)
             j = i;
           else {
@@ -903,6 +985,8 @@ int InterpretEsoteric(flag fGetRays)
     if (k == 0)
       k = 1;
     for (ray = 1; ray <= cRay; ray++) {
+      if (ray > 1)
+        AnsiColor(kRayA[rgnSort[ray]]);
       sprintf(sz, " R%d (%2d%%)%s", rgnSort[ray], rgcRay[rgnSort[ray]] *
         100 / k, ray < cRay ? "," : ""); PrintSz(sz);
     }
@@ -952,13 +1036,13 @@ int InterpretEsoteric(flag fGetRays)
     sprintf(sz, "%s esoteric lesson: %s.\n", szSignName[sig],
       rgEsoLesson[sig]);
     FieldWord(sz);
-    sprintf(sz, "%s mundane mantram: \"%s\"\n",
+    sprintf(sz, "%s mundane mantram: \"%s.\"\n",
       szSignName[sig], rgEsoMantra1[sig]);
     FieldWord(sz);
-    sprintf(sz, "%s esoteric mantram: \"%s\"\n",
+    sprintf(sz, "%s esoteric mantram: \"%s.\"\n",
       szSignName[sig], rgEsoMantra2[sig]);
     FieldWord(sz);
-    sprintf(sz, "%s Light is: \"%s\"\n", szSignName[sig], rgEsoLight[sig]);
+    sprintf(sz, "%s Light is: \"%s.\"\n", szSignName[sig], rgEsoLight[sig]);
     FieldWord(sz);
     sprintf(sz, "%s Labor of Hercules: %s.\n",
       szSignName[sig], rgEsoLabor[sig]);
@@ -1001,6 +1085,14 @@ int InterpretEsoteric(flag fGetRays)
       sprintf(sz, "%s is Ray %d (%s), the \"Will to %s\".\n",
         szSignName[sig], j, szRayName[j], szRayWill[j]);
       AnsiColor(kRayA[j]); FieldWord(sz);
+    }
+    if (us.fSabian) {
+      AnsiColor(kSignA(sig));
+      j = (int)planet[i] - (sig-1)*30;
+      sprintf(sz, "%s %d-%d Sabian Symbol:", szSignName[sig], j, j+1);
+      FieldWord(sz);
+      sprintf(sz, "%s.", szSabian[(int)planet[i]]); FieldWord(sz);
+      FieldWord(NULL);
     }
     // House
     if (us.fInfluenceSign) {
@@ -1104,13 +1196,13 @@ void PrintEsoteric()
     sprintf(sz, "%s esoteric lesson: %s.\n", szSignName[i],
       rgEsoLesson[i]);
     FieldWord(sz);
-    sprintf(sz, "%s mundane mantram: \"%s\"\n",
+    sprintf(sz, "%s mundane mantram: \"%s.\"\n",
       szSignName[i], rgEsoMantra1[i]);
     FieldWord(sz);
-    sprintf(sz, "%s esoteric mantram: \"%s\"\n",
+    sprintf(sz, "%s esoteric mantram: \"%s.\"\n",
       szSignName[i], rgEsoMantra2[i]);
     FieldWord(sz);
-    sprintf(sz, "%s Light is: \"%s\"\n", szSignName[i], rgEsoLight[i]);
+    sprintf(sz, "%s Light is: \"%s.\"\n", szSignName[i], rgEsoLight[i]);
     FieldWord(sz);
     sprintf(sz, "%s Labor of Hercules: %s.\n",
       szSignName[i], rgEsoLabor[i]);
@@ -1289,6 +1381,7 @@ void ChartInfluence(void)
     total, total1, total2;
   int rank[objMax], rank1[objMax], rank2[objMax], i, j;
   char sz[cchSzDef];
+  flag fSignOnly = us.fIndian;
 
   ComputeInfluence(power1, power2);
 
@@ -1338,7 +1431,7 @@ void ChartInfluence(void)
     power1[SFromZ(planet[i])] += power[i] / 2.0;
     if (us.fListDecan)
       power1[SFromZ(Decan(planet[i]))] += power[i] / 6.0;
-    if (us.fSectorApprox)
+    if (fSignOnly)
       power1[inhouse[i]]        += power[i] / 4.0;
     if (!ignore7[rrStd]) {
       power1[ruler1[i]]         += power[i] / 3.0;
@@ -1418,7 +1511,7 @@ void ChartInfluence(void)
 
   // For each house, determine its power based on the power of the objects.
 
-  if (us.fSectorApprox)
+  if (fSignOnly)
     return;
   for (i = 1; i <= cSign; i++)
     power2[i] += rObjInf[oAsc + i - 1];

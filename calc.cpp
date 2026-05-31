@@ -1,8 +1,8 @@
 /*
-** Astrolog (Version 7.80) File: calc.cpp
+** Astrolog (Version 8.00) File: calc.cpp
 **
 ** IMPORTANT NOTICE: Astrolog and all chart display routines and anything
-** not enumerated below used in this program are Copyright (C) 1991-2025 by
+** not enumerated below used in this program are Copyright (C) 1991-2026 by
 ** Walter D. Pullen (Astara@msn.com, http://www.astrolog.org/astrolog.htm).
 ** Permission is granted to freely use, modify, and distribute these
 ** routines provided these credits and notices remain unmodified with any
@@ -48,7 +48,7 @@
 ** Initial programming 8/28-30/1991.
 ** X Window graphics initially programmed 10/23-29/1991.
 ** PostScript graphics initially programmed 11/29-30/1992.
-** Last code change made 6/19/2025.
+** Last code change made 5/28/2026.
 */
 
 #include "astrolog.h"
@@ -95,8 +95,7 @@ long MdyToJulian(int mon, int day, int yea)
 
 real MdytszToJulian(int mon, int day, int yea, real tim, real dst, real zon)
 {
-  if (dst == dstAuto)
-    dst = (real)is.fDst;
+  dst = DstReal(dst);
   return (real)MdyToJulian(mon, day, yea) + (tim + zon - dst) / 24.0;
 }
 
@@ -128,7 +127,7 @@ void JulianToMdy(real JD, int *mon, int *day, int *yea)
     return;
   }
 #endif
-  *mon = mJan; *day = 1; *yea = 2025;
+  *mon = mJan; *day = 1; *yea = 2026;
 }
 
 
@@ -443,7 +442,7 @@ void HousePullenSinusoidalRatio(real Asc)
   if (dir < 0)
     neg(xHouse);
   chouse[sAri] = Asc; chouse[sCap] = is.MC;
-  chouse[sLib] = Mod(Asc + rDegHalf); 
+  chouse[sLib] = Mod(Asc + rDegHalf);
   chouse[sCap + dir]   = Mod(chouse[sCap]                + xHouse * rRatio);
   chouse[sCap + dir*2] = Mod(chouse[Mod12(sCap + dir*3)] - xHouse * rRatio);
   chouse[sCap - dir]   = Mod(chouse[sCap]                - xHouse * rRatio3);
@@ -767,7 +766,7 @@ real Navamsa(real deg)
 
 
 CONST int rgnTermEgypt[cSign*2] = {
-  0x66855, 0x64357, 0x86853, 0x43675, 0x66576, 0x36457, 0x76584, 0x54367,
+  0x66855, 0x64357, 0x86853, 0x43675, 0x66576, 0x36457, 0x76674, 0x54367,
   0x65766, 0x64735, 0x7a472, 0x34657, 0x68772, 0x73645, 0x74856, 0x54367,
   0xc5454, 0x64375, 0x77844, 0x36475, 0x76755, 0x34657, 0xc4392, 0x46357};
 CONST int rgnTermPtolemy[cSign*2] = {
@@ -781,31 +780,40 @@ CONST int rgnTermPtolemy[cSign*2] = {
 int ObjTerm(real pos, int nType)
 {
   CONST int *rgRules, *rgTerm;
-  int sig = SFromZ(pos) - 1, deg, i, d = 0, n;
+  int nRet = 0, sig = SFromZ(pos) - 1, deg, i, d = 0, n;
 
   if (nType <= 0) {
-    if (ignore7[rrStd] && ignore7[rrEso] && !ignore7[rrHie])
-      rgRules = rgSignHie1;
-    else if (ignore7[rrStd] && !ignore7[rrEso])
-      rgRules = rgSignEso1;
-    else
-      rgRules = rules;
-    return rgRules[SFromZ(Decan(pos))];
+    rgRules = RgRules();
+    nRet = rgRules[SFromZ(Decan(pos))];
   } else if (nType == 1) {
     n = ((int)pos)/10%7;
-    return (0x5143276 >> (6-n)*4) & 15;
+    nRet = (0x5143276 >> (6-n)*4) & 15;
   } else if (nType >= 2) {
     rgTerm = (nType == 2 ? rgnTermEgypt : rgnTermPtolemy);
     deg = (int)pos - sig*30;
     for (i = 0; i < 5; i++) {
       n = (rgTerm[sig*2] >> (4-i)*4) & 15;
       d += n;
-      if (deg < d)
-        return (rgTerm[sig*2+1] >> (4-i)*4) & 15;
+      if (deg < d) {
+        nRet = (rgTerm[sig*2+1] >> (4-i)*4) & 15;
+        break;
+      }
     }
-    Assert(fFalse);
+    Assert(i < 5);
   }
-  return 0;
+#ifdef EXPRESS
+  // Notify AstroExpression a term is about to be calculated.
+  if (!us.fExpOff && FSzSet(us.szExpDecan2)) {
+    ExpSetN(iLetterX, nType);
+    ExpSetR(iLetterY, pos);
+    ExpSetN(iLetterZ, nRet);
+    ParseExpression(us.szExpDecan2);
+    nRet = NExpGet(iLetterZ);
+    if (!FBetween(nRet, 0, cObj))
+      nRet = 0;
+  }
+#endif
+  return nRet;
 }
 
 
@@ -872,7 +880,7 @@ void CoorXform(real *azi, real *alt, real tilt)
 }
 
 
-// Fast version of CoorXForm() in which the slow trigonometry values have
+// Fast version of CoorXform() in which the slow trigonometry values have
 // already been computed. Useful when doing many transforms in a row.
 
 void CoorXformFast(real *azi, real *alt, real sinazi, real cosazi,
@@ -886,6 +894,35 @@ void CoorXformFast(real *azi, real *alt, real sinazi, real cosazi,
   a1 = cosalt * sinazi * sintilt + sinalt * costilt;
   a1 = RAsin(a1);
   *azi = DFromR(l1); *alt = DFromR(a1);
+}
+
+
+// Convert an ecliptic position to equatorial, or vice versa. Unlike
+// CoorXform(), this also converts their velocities. There are options to
+// actually edit the horizontal and/or vertical components of the position.
+
+void EclToEquDir(real *azi, real *alt, real *azidir, real *altdir,
+  flag fDoLon, flag fDoLat, flag fEclToEqu)
+{
+  real aziT = *azi, altT = *alt, azidirT, altdirT;
+
+  azidirT = Mod(aziT + *azidir/12.0);
+  altdirT =     altT + *altdir/12.0;
+  if (fEclToEqu) {
+    EclToEqu(&aziT, &altT);
+    EclToEqu(&azidirT, &altdirT);
+  } else {
+    EquToEcl(&aziT, &altT);
+    EquToEcl(&azidirT, &altdirT);
+  }
+  if (fDoLon) {
+    *azi = aziT;
+    *azidir = MinDifference(aziT, azidirT) * 12.0;
+  }
+  if (fDoLat) {
+    *alt = altT;
+    *altdir = (altdirT - altT) * 12.0;
+  }
 }
 
 
@@ -957,7 +994,7 @@ void ComputeEphem(real t)
         !(fSwiss && objCentCalc == oEar && us.fBarycenter)) ||
       (!fSwiss && (i >= oFor ||
         (us.fPlacalcAst && FBetween(i, oCer, oVes)))) ||
-      (fJPLPla && i == oEar)) 
+      (fJPLPla && i == oEar))
       continue;
 
     // Calculate planet using Swiss Ephemeris, Placalc, or JPL Horizons
@@ -977,7 +1014,9 @@ void ComputeEphem(real t)
 #endif
     {
 #ifdef SWISS
-      if (fSwiss) {
+      if (FCust(i) && rgTypSwiss[i - custLo] == 5)
+        fRet = fTrue;
+      else if (fSwiss) {
         objOrbit = us.fMoonMove ? ObjOrbit(i) : -1;
         if (objOrbit < 0 || objOrbit == oSun)
           objOrbit = objCentCalc;
@@ -1172,8 +1211,8 @@ real CastChart(int nContext)
     ParseExpression(us.szExpCast1);
 #endif
 
-  // Hack: If month is negative, then know chart was read in through a -o0
-  // position file, so planet positions are already in the arrays.
+  // If month is negative, then chart was read in through a -o0 position file,
+  // so planet positions are already in the arrays.
 
   if (FNoTimeOrSpace(ciCore)) {
     is.MC = planet[oMC]; is.Asc = planet[oAsc];
@@ -1181,9 +1220,9 @@ real CastChart(int nContext)
     return 0.0;
   }
 
-  // Hack: Time zone 24 means to have the time of day be in Local Mean Time
-  // (LMT). This is done by making the time zone value reflect the logical
-  // offset from UTC as indicated by the chart's longitude value.
+  // Time zone 24 means to have the time of day be in Local Mean Time (LMT).
+  // This is done by making the time zone value reflect the logical offset
+  // from UTC as indicated by the chart's longitude value.
 
   ciSav = ciCore;
   is.JD = (real)MdyToJulian(MM, DD, YY);
@@ -1201,29 +1240,31 @@ real CastChart(int nContext)
   ClearB((pbyte)space, sizeof(space));
 
   is.T = (is.JD + TT/24.0) + (us.rCuspAddition/24.0);
-  if (us.fProgress && us.nProgress != ptSolarArc) {
+  if (us.fProgress) {
 
     // For ptCast, is.Tp is time that progressed chart cusps cast for.
     // For ptMixed, is.Tp is base chart time to solar arc cusps from.
     is.Tp = is.T;
-    if (us.nProgress == ptCast)
-      is.Tp += ((is.JDp - is.Tp) / (us.rProgDay * us.rProgCusp));
+    if (us.nProgress != ptMixed)
+      is.Tp += (is.JDp - is.Tp) / ((us.nProgress != ptSolarArc ||
+        us.objProgArc < 0) ? (us.rProgDay * us.rProgCusp) : rDayInYear);
     is.Tp = (is.Tp - 2415020.5) / 36525.0;
 
     // Determine actual time that a progressed chart is to be cast for.
-    is.T += ((is.JDp - is.T) / us.rProgDay);
-
+    if (us.nProgress != ptSolarArc) {
+      is.T += ((is.JDp - is.T) / us.rProgDay);
 #ifdef EXPRESS
-    // Adjust progression times with AstroExpressions.
-    if (!us.fExpOff && FSzSet(us.szExpProg)) {
-      ExpSetR(iLetterX, is.JDp);
-      ExpSetR(iLetterY, is.Tp);
-      ExpSetR(iLetterZ, is.T);
-      ParseExpression(us.szExpProg);
-      is.Tp = RExpGet(iLetterY);
-      is.T  = RExpGet(iLetterZ);
-    }
+      // Adjust progression times with AstroExpressions.
+      if (!us.fExpOff && FSzSet(us.szExpProg)) {
+        ExpSetR(iLetterX, is.JDp);
+        ExpSetR(iLetterY, is.Tp);
+        ExpSetR(iLetterZ, is.T);
+        ParseExpression(us.szExpProg);
+        is.Tp = RExpGet(iLetterY);
+        is.T  = RExpGet(iLetterZ);
+      }
 #endif
+    }
   }
   is.T -= ((us.rCuspAddition - us.rObjAddition) / 24.0);
   is.T = (is.T - 2415020.5) / 36525.0;
@@ -1295,53 +1336,56 @@ real CastChart(int nContext)
       ret[oNod] = ret[oSou] = ret[oMoo] = 1.0;
   }
 
-  // Calculate position of Part of Fortune.
-
-  if (!ignore[oFor]) {
-    r = MinDifference(planet[oSun], planet[oMoo]);
-    r2 = ret[oMoo] - ret[oSun];
-    planetalt[oFor] = us.fHouse3D ? planetalt[oMoo] - planetalt[oSun] : 0.0;
-    retalt[oFor] = us.fHouse3D ? retalt[oMoo] - retalt[oSun] : 0.0;
-    // Invert formula for night charts, when Sun below horizon.
-    i = us.nHouse3D; us.nHouse3D = hmPrime;
-    if (us.nArabicNight < 0 || (us.nArabicNight == 0 && (!us.fHouse3D ?
-      MinDifference(planet[oSun], is.Asc) < 0.0 :
-      RHousePlaceIn3DCore(planet[oSun], planetalt[oSun]) < rDegHalf))) {
-      neg(r); neg(r2);
-      neg(planetalt[oFor]); neg(retalt[oFor]);
-    }
-    us.nHouse3D = i;
-    planet[oFor] = Mod(r + is.Asc);
-    ret[oFor] += r2;                 // Already contains ret[oAsc].
-  }
-
   // Fill in "planet" positions corresponding to house cusps.
 
   planet[oVtx] = is.Vtx; planet[oEP] = is.EP;
   for (i = 1; i <= cSign; i++)
-    planet[cuspLo + i - 1] = chouse[i];
+    planet[cuspLo-1 + i] = chouse[i];
   if (!us.fHouseAngle) {
     planet[oAsc] = is.Asc; planet[oMC] = is.MC;
     planet[oDes] = Mod(is.Asc + rDegHalf);
     planet[oNad] = Mod(is.MC + rDegHalf);
   }
-  for (i = oFor; i <= cuspHi; i++) {
+  for (i = oVtx; i <= cuspHi; i++) {
     r = FCmSwissAny() ? ret[i] : (rDegMax + 1.0);
     if (us.fVelocity)
       r /= (rDegMax + 1.0);
     ret[i] = r;
   }
 
+#ifdef ARABIC
+  // Calculate position of Part of Fortune, and custom Arabic parts.
+
+  if (!ignore[oFor]) {
+    ComputeArabic(apFor, &planet[oFor], &planetalt[oFor], &ret[oFor],
+      &r, &retalt[oFor], &retlen[oFor]);
+    if (r != 0.0)
+      SphToRec(r, planet[oFor], planetalt[oFor],
+        &space[oFor].x, &space[oFor].y, &space[oFor].z);
+  }
+#ifdef SWISS
+  for (i = custLo; i <= custHi; i++) {
+    if (!ignore[i] && rgTypSwiss[i-custLo] == 5) {
+      ComputeArabic(rgObjSwiss[i-custLo] - 1, &planet[i], &planetalt[i],
+        &ret[i], &r, &retalt[i], &retlen[i]);
+      if (r != 0.0)
+        SphToRec(r, planet[i], planetalt[i],
+          &space[i].x, &space[i].y, &space[i].z);
+      else
+        space[i].x = space[i].y = space[i].z = 0.0;
+    }
+  }
+#endif
+#endif // ARABIC
+
   // Transform ecliptic to equatorial coordinates if -sr in effect.
 
   if (us.fEquator || us.fEquator2)
     for (i = 0; i <= is.nObj; i++) if (!ignore[i]) {
-      r = Tropical(planet[i]); r2 = planetalt[i];
-      EclToEqu(&r, &r2);
-      if (us.fEquator)
-        planet[i] = r;
-      if (us.fEquator2)
-        planetalt[i] = r2;
+      r = Tropical(planet[i]);
+      EclToEquDir(&r, &planetalt[i], &ret[i], &retalt[i],
+        us.fEquator, us.fEquator2, fTrue);
+      planet[i] = Untropical(r);
     }
 
   // Now, may have to modify the base positions calculated above based on what
@@ -1349,8 +1393,21 @@ real CastChart(int nContext)
   // apply an offset to planets and/or houses.
 
   if (us.fProgress && us.nProgress != ptCast) {
-    r2 = JulianDayFromTime(us.nProgress == ptSolarArc ? is.T : is.Tp);
-    r = (is.JDp - r2 - 0.5) / us.rProgDay;
+    // Compute true arc based on planet movement, or a fixed rate offset.
+#ifdef SWISS
+    if (us.objProgArc >= 0) {
+      FSwissPlanet(us.objProgArc, JulianDayFromTime(is.Tp), us.objCenter,
+        &r, &r2, &r2, &r2, &r2, &r2);
+      r = Mod(r + is.rSid);
+      r2 = (us.nProgress == ptSolarArc ? MinDifference(planet[us.objProgArc],
+        r) : MinDifference(r, planet[us.objProgArc]));
+      r = r2 / (us.rProgDay / rDayInYear);
+    } else
+#endif
+    {
+      r2 = JulianDayFromTime(us.nProgress == ptSolarArc ? is.T : is.Tp);
+      r = (is.JDp - r2 - 0.5) / us.rProgDay;
+    }
 #ifdef EXPRESS
     // Adjust progression arc with AstroExpression.
     if (!us.fExpOff && FSzSet(us.szExpProg0)) {
@@ -1365,7 +1422,7 @@ real CastChart(int nContext)
     if (us.nProgress == ptSolarArc) {
       for (i = 0; i <= is.nObj; i++) {
         if (i == oFor)
-          i = cuspHi+1;
+          i = cuspHi+1;    // Skip over house cusp objects handled below.
         planet[i] = Mod(planet[i] + r);
       }
     }
@@ -1375,6 +1432,20 @@ real CastChart(int nContext)
       planet[i] = Mod(planet[i] + r);
     for (i = 1; i <= cSign; i++)
       chouse[i] = Mod(chouse[i] + r);
+#ifdef SWISS
+    // May want to recalculate cusps based on the new position of the MC.
+    if (us.fProgRAMC) {
+      k = us.fGeodetic; us.fGeodetic = fTrue;
+      r = Tropical(planet[oMC]); r2 = 0.0;
+      EclToEqu(&r, &r2);
+      r = Untropical(r);
+      SwissHouse(us.nProgress == ptSolarArc ? is.T : is.Tp,
+        rDegMax - r, AA, us.nHouseSystem, &r, &r, &r, &r, &r, &r, &r, &r);
+      us.fGeodetic = k;
+      for (i = 1; i <= cSign; i++)
+        planet[cuspLo-1 + i] = chouse[i];
+    }
+#endif
   }
 
   // If -x harmonic chart in effect, then multiply all planet positions.
@@ -1390,7 +1461,8 @@ real CastChart(int nContext)
     if (us.fObjRotWhole)
       r = (real)((SFromZ(r)-1)*30);
     r -= planet[us.objRot1];
-    for (i = 0; i <= is.nObj; i++)
+    k = Max(is.nObj, o12h);
+    for (i = 0; i <= k; i++)
       planet[i] = Mod(planet[i] + r);
   }
 
@@ -1405,7 +1477,7 @@ real CastChart(int nContext)
       } else {
         // Force to a midpoint of two other positions.
         k = (-(int)force[i])-1;
-        k2 = k % cObj; k /= cObj;
+        k2 = k % objMax; k /= objMax;
         planet[i] = Midpoint(planet[k], planet[k2]);
         planetalt[i] = (planetalt[k] + planetalt[k2]) / 2.0;
         ret[i] = (ret[k] + ret[k2]) / 2.0;
@@ -1521,7 +1593,7 @@ real CastChart(int nContext)
 void CastSectors()
 {
   int source[MAXINDAY], type[MAXINDAY], occurcount, division, div,
-    i, j, s1, s2, ihouse, fT;
+    i, j, s1, s2, iSav, fSav;
   real time[MAXINDAY], rgalt1[objMax], rgalt2[objMax],
     azi1, azi2, alt1, alt2, mc1, mc2, d, k;
   CP cpA, cpB;
@@ -1531,11 +1603,11 @@ void CastSectors()
   // into Placidus houses. The -f flip houses flag does this for us.
 
   if (us.fSectorApprox) {
-    ihouse = us.nHouseSystem; us.nHouseSystem = hsPlacidus;
+    iSav = us.nHouseSystem; us.nHouseSystem = hsPlacidus;
     inv(us.fFlip);
     CastChart(0);
     inv(us.fFlip);
-    us.nHouseSystem = ihouse;
+    us.nHouseSystem = iSav;
     return;
   }
 
@@ -1543,7 +1615,7 @@ void CastSectors()
   // way: based on a planet's nearest rising and setting times. The code below
   // is similar to ChartHorizonRising() accessed by the -Zd switch.
 
-  fT = us.fSidereal; us.fSidereal = fFalse;
+  fSav = us.fSidereal; us.fSidereal = fFalse;
   division = us.nDivision * 4;
   occurcount = 0;
 
@@ -1649,10 +1721,10 @@ LRetry:
     planet[i] = Mod(rDegMax - planet[i]);
   }
 
-  // Restore original chart info as have overwritten it.
+  // Restore original chart info since have overwritten it.
 
   ciCore = ciMain;
-  us.fSidereal = fT;
+  us.fSidereal = fSav;
 }
 
 
@@ -1716,9 +1788,9 @@ flag FAcceptAspect(int obj1, int asp, int obj2)
     (asp == aSes && !FIgnoreA(aSSq)) || (asp == aSQn && !FIgnoreA(aBQn)) ||
     (asp == aDc3 && !FIgnoreA(aQui));
 
-  // Prevent any simultaneous aspects to opposing angle cusps, e.g. if
-  // conjunct one, don't be opposite the other; if trine one, don't sextile
-  // the other; don't square both at once, etc.
+  // Prevent any simultaneous aspects to opposing Angle cusps, e.g. if
+  // Conjunct one, don't be Opposite the other; if Trine one, don't Sextile
+  // the other; don't Square both at once, etc.
   if (!ignore[oMC] && !ignore[oNad] &&
     (((obj1 == oMC || obj2 == oMC) && fSupp) ||
     ((obj1 == oNad || obj2 == oNad) && (fSupp || asp == aSqu))))
@@ -1819,22 +1891,26 @@ int GetAspect(CONST real *planet1, CONST real *planet2,
 
 int GetParallel(CONST real *planet1, CONST real *planet2,
   CONST real *planetalt1, CONST real *planetalt2,
+  CONST real *ret1, CONST real *ret2,
   CONST real *retalt1, CONST real *retalt2, int i, int j, real *prOrb)
 {
   int asp;
-  real rDiff, rOrb, azi, alt1, alt2, retalt1a;
+  real rDiff, rOrb, azi1, azi2, alt1, alt2, dir1, dir2, altdir1, altdir2,
+    retalt1a;
 
   // Compute the declination of the two planets.
-  alt1 = planetalt1[i];
-  alt2 = planetalt2[j];
+  azi1 = planet1[i];    azi2 = planet2[j];
+  alt1 = planetalt1[i]; alt2 = planetalt2[j];
+  dir1 = ret1[i];       dir2 = ret2[j];
+  altdir1 = retalt1[i]; altdir2 = retalt2[j];
   if (!us.fEquator2 && !us.fParallel2) {
     // If have ecliptic latitude and want equatorial declination, convert.
-    azi = planet1[i]; EclToEqu(&azi, &alt1);
-    azi = planet2[j]; EclToEqu(&azi, &alt2);
+    EclToEquDir(&azi1, &alt1, &dir1, &altdir1, fFalse, fTrue, fTrue);
+    EclToEquDir(&azi2, &alt2, &dir2, &altdir2, fFalse, fTrue, fTrue);
   } else if (us.fEquator2 && us.fParallel2) {
     // If have equatorial declination and want ecliptic latitude, convert.
-    azi = planet1[i]; EquToEcl(&azi, &alt1);
-    azi = planet2[j]; EquToEcl(&azi, &alt2);
+    EclToEquDir(&azi1, &alt1, &dir1, &altdir1, fFalse, fTrue, fFalse);
+    EclToEquDir(&azi2, &alt2, &dir2, &altdir2, fFalse, fTrue, fFalse);
   }
 
   // Check each vertical aspect type to see if it applies.
@@ -1856,8 +1932,8 @@ int GetParallel(CONST real *planet1, CONST real *planet2,
     rOrb = GetOrb(i, j, asp);
     if (us.nAppSep == 1) {
       if (FCmSwissAny()) {
-        retalt1a = us.nRel > rcTransit ? retalt1[i] : 0.0;
-        rDiff *= RSgn2(retalt1a - retalt2[j]);
+        retalt1a = us.nRel > rcTransit ? altdir1 : 0.0;
+        rDiff *= RSgn2(altdir2 - retalt1a);
       } else {
         // If no declination velocity, make aspect separating.
         rDiff = RAbs(rDiff);
@@ -1983,7 +2059,7 @@ flag FCreateGrid(flag fFlip)
       if (fFlip ? x > y : x < y) {
         if (us.fParallel)
           asp = GetParallel(planet, planet, planetalt, planetalt,
-            retalt, retalt, x, y, &rOrb);
+            ret, ret, retalt, retalt, x, y, &rOrb);
         else if (us.fDistance)
           asp = GetDistance(space, space, retlen, retlen, x, y, &rOrb);
         else
@@ -1994,10 +2070,10 @@ flag FCreateGrid(flag fFlip)
       } else if (fFlip ? x < y : x > y) {
         // Calculate midpoint in 2D or 3D.
         if (!us.fHouse3D)
-          l = Mod(Midpoint(planet[x], planet[y]));
+          l = Midpoint2(planet[x], planet[y], us.rRatio);
         else
-          SphRatio(planet[x], planetalt[x], planet[y], planetalt[y], 0.5,
-            &l, &rT);
+          SphRatio(planet[x], planetalt[x], planet[y], planetalt[y],
+            us.rRatio, &l, &rT);
         k = SFromZ(l);
         grid->n[x][y] = k;
         grid->v[x][y] = l - (real)((k-1)*30);
@@ -2031,7 +2107,7 @@ flag FCreateGridRelation(flag fMidpoint)
         // that relationship aspect grids have chart #1 down the Y axis.
         if (us.fParallel)
           asp = GetParallel(cp1.obj, cp2.obj, cp1.alt, cp2.alt,
-            cp1.diralt, cp2.diralt, y, x, &rOrb);
+            cp1.dir, cp2.dir, cp1.diralt, cp2.diralt, y, x, &rOrb);
         else if (us.fDistance)
           asp = GetDistance(cp1.pt, cp2.pt, cp1.dirlen, cp2.dirlen,
             y, x, &rOrb);
@@ -2043,10 +2119,10 @@ flag FCreateGridRelation(flag fMidpoint)
       } else {
         // Calculate midpoint in 2D or 3D.
         if (!us.fHouse3D)
-          l = Mod(Midpoint(cp1.obj[x], cp2.obj[y]));
+          l = Midpoint2(cp1.obj[x], cp2.obj[y], us.rRatio);
         else
-          SphRatio(cp1.obj[x], cp1.alt[x], cp2.obj[y], cp2.alt[y], 0.5,
-            &l, &rT);
+          SphRatio(cp1.obj[x], cp1.alt[x], cp2.obj[y], cp2.alt[y],
+            us.rRatio, &l, &rT);
         k = SFromZ(l);
         grid->n[x][y] = k;
         grid->v[x][y] = l - (real)((k-1)*30);
@@ -2125,7 +2201,7 @@ int NCheckEclipseSolar(int iEar, int iMoo, int iSun, real *prPct)
 
 int NCheckEclipse(int obj1, int obj2, real *prPct)
 {
-  real radi1, radi2, len1, len2, angDiff, ang1, ang2;
+  real radi0, radi1, radi2, len1, len2, angDiff, ang1, ang2, ang1T, ang2T;
 
   // Objects that aren't actual things in space can't eclipse or be eclipsed.
   if (!FThing(obj1) || !FThing(obj2))
@@ -2138,13 +2214,14 @@ int NCheckEclipse(int obj1, int obj2, real *prPct)
     return etNone;
 
   // Special check if solar eclipse allowed to happen anywhere on Earth.
-  if (us.fEclipseAny && obj1 == oSun)
+  if (us.fEclipseAny && obj1 == oSun && (obj2 == oMoo || FMoons(obj2)) &&
+    (us.fMoonMove || ObjOrbit(obj2) == us.objCenter))
     return NCheckEclipseSolar(us.objCenter, obj2, oSun, prPct);
 
   // Calculate angular distance between center points of the two objects.
   angDiff = SphDistance(planet[obj1], planetalt[obj1],
     planet[obj2], planetalt[obj2]);
-  if (us.objCenter == oEar && angDiff > 0.75)
+  if (us.objCenter == oEar && angDiff > (!us.fEclipseAny ? 0.75 : 1.5))
     return etNone;
 
   // Calculate angular size in the sky spanned by the two objects.
@@ -2152,6 +2229,15 @@ int NCheckEclipse(int obj1, int obj2, real *prPct)
   len2 = PtLen(space[obj2]) * rAUToKm;
   ang1 = RAtnD(radi1 / len1);
   ang2 = RAtnD(radi2 / len2);
+  if (us.fEclipseAny) {
+    // Shrink angular distance by best case topocentric offset.
+    radi0 = RObjDiam(us.objCenter) / 2.0;
+    ang1T = RAtnD(radi0 / len1);
+    ang2T = RAtnD(radi0 / len2);
+    angDiff -= RAbs(ang2T - ang1T);
+    if (angDiff < 0.0)
+      angDiff = 0.0;
+  }
   if (ang1 + ang2 <= angDiff)
     return etNone;
 
@@ -2223,12 +2309,14 @@ int NCheckEclipseLunar(int iEar, int iMoo, int iSun, real *prPct)
     if (prPct != NULL)
       *prPct = 100.0 - (angDiff - (angU - angM)) / (angM * 2.0) * 100.0;
     return etPartial;
+  } else if (angDiff + angM <= angP) {
+    if (prPct != NULL)
+      *prPct = (angP - angDiff - angM) / (angP - (angU + angM * 2.0)) * 100.0;
+    return etPenumbra2;
   }
-  if (prPct != NULL) {
-    *prPct = (angDiff - (angP - angM)) / (angM * 2.0) * 100.0;
-    *prPct = 100.0 - Max(*prPct, 0.0);
-  }
-  return angDiff + angM <= angP ? etPenumbra2 : etPenumbra;
+  if (prPct != NULL)
+    *prPct = 100.0 - (angDiff - (angP - angM)) / (angM * 2.0) * 100.0;
+  return etPenumbra;
 }
 
 
@@ -2364,9 +2452,9 @@ void CreateElemTable(ET *pet)
 
 void SwissEnsurePath()
 {
-  char szPath[AS_MAXCH];
+  char szPath[AS_MAXCH], *pch;
 #ifdef ENVIRON
-  char szExe[cchSzMax], szT[cchSzMax], *env, *pch;
+  char szExe[cchSzMax], szT[cchSzMax], *env;
 #endif
   int i;
 
@@ -2401,8 +2489,9 @@ void SwissEnsurePath()
           ;
       } else
         pch = szT;
-      sprintf(pch, "%s", us.rgszPath[i]);
-      sprintf(szPath + CchSz(szPath), "%s%s", PATH_SEPARATOR, szT);
+      sprintf2(SO(pch, szT), "%s", us.rgszPath[i]);
+      sprintf2(SO(szPath + CchSz(szPath), szPath), "%s%s", PATH_SEPARATOR,
+        szT);
     }
   }
 #ifdef ENVIRON
@@ -2426,8 +2515,16 @@ void SwissEnsurePath()
     sprintf2(SO(szPath + CchSz(szPath), szPath), "%s%s", PATH_SEPARATOR, env);
 #endif
   // Finally look in a directory specified at compile time.
-  sprintf2(SO(szPath + CchSz(szPath), szPath), "%s%s", PATH_SEPARATOR,
-    EPHE_DIR);
+  pch = EPHE_DIR;
+  if (FSzSet(pch))
+    sprintf2(SO(szPath + CchSz(szPath), szPath), "%s%s", PATH_SEPARATOR,
+      EPHE_DIR);
+  if (CchSz(szPath) >= sizeof(szPath)-1) {
+    sprintf(szT,
+      "Swiss Ephemeris file path longer than %d characters, so truncated.",
+      (int)sizeof(szPath)-1);
+    PrintWarning(szT);
+  }
   swe_set_ephe_path(szPath);
   is.fSwissPathSet = fTrue;
 }
@@ -2609,18 +2706,19 @@ flag FSwissPlanet(int ind, real jd, int indCent,
       nRet = swe_calc_pctr(jde, iobj, iobjCent, iflag, xx, serr);
     }
   } else {
-    if (us.fNaturalNode && iobj == SE_MOON && nPnt == 3) {
-      // Special case to get access to SE_INTP_PERG.
-      nRet = swe_calc(jde, SE_INTP_PERG, iflag, xx, serr);
+    if (us.fNaturalNode && iobj == SE_MOON && (nPnt == 3 || nPnt == 4)) {
+      // Special case to get access to SE_INTP_APOG and SE_INTP_PERG.
+      nRet = swe_calc(jde, nPnt == 3 ? SE_INTP_PERG : SE_INTP_APOG, iflag, xx,
+        serr);
     } else {
       // Standard case to get node or apsis position.
       nRet = swe_nod_aps(jde, iobj, iflag, us.fTrueNode ? SE_NODBIT_OSCU :
         SE_NODBIT_MEAN, xnasc, xndsc, xperi, xaphe, serr);
       switch (nPnt) {
-      case 1:  px = xnasc; break;
-      case 2:  px = xndsc; break;
-      case 3:  px = xperi; break;
-      default: px = xaphe; break;
+      case 1:  px = xnasc; break;  // North node
+      case 2:  px = xndsc; break;  // South node
+      case 3:  px = xperi; break;  // Perihelion point
+      default: px = xaphe; break;  // Aphelion point
       }
       for (ix = 0; ix < 6; ix++)
         xx[ix] = px[ix];
@@ -2655,10 +2753,6 @@ flag FSwissPlanet(int ind, real jd, int indCent,
   *dir    = xx[3];
   *diralt = xx[4];
   *dirlen = xx[5];
-  if (us.fParallel) {
-    swe_cotrans_sp(xx, xnasc, -RAbs(is.OB));
-    *diralt = xnasc[4];
-  }
   return fTrue;
 }
 
@@ -2720,7 +2814,8 @@ void SwissHouse(real jd, real lon, real lat, int housesystem, real *asc,
   if (!us.fGeodetic)
     armc += swe_degnorm(swe_sidtime0(jd + (us.rDeltaT == rInvalid ? 0.0 :
       us.rDeltaT/86400.0 - is.rDeltaT), eps + nutlo[1], nutlo[0]) * 15.0);
-  if (ch == 'I') {  // Need Sun declination for Sunshine houses.
+  if (ch == 'I') {
+    // Need Sun declination for Sunshine houses.
     int flags = SEFLG_SPEED | SEFLG_EQUATORIAL;
     double xp[6];
     int result = swe_calc_ut(jd, SE_SUN, flags, xp, NULL);
@@ -2837,7 +2932,7 @@ void SwissComputeStars(real jd, flag fInitBright)
           us.fStarMagAbs ? 10.0 * rPCToAU : xx[2]);
       else
         rStarBright[i] = rStarBrightDef[i];
-      if (kObjU[starLo] >= kNull)
+      if (kObjU[starLo] >= cColor2)
         kObjA[oNorm+i] = KStarA(rStarBright[i]);
     } else {
       rStarBrightDistDef[i] = xx[2];
@@ -2912,14 +3007,15 @@ LNext:
     pes->pt.z += space[oSun].z;
     RecToSph3(pes->pt.x, pes->pt.y, pes->pt.z, &pes->lon, &pes->lat);
     if (us.fStarMagDist)
-      dist2 = us.fStarMagAbs ? 10.0 * rPCToAU : PtLen(pes->pt);
+      dist2 = PtLen(pes->pt);
   }
   if (swe_fixstar2_mag(pes->sz, &pes->mag, serr) < 0)
     return fFalse;
   if (pes->mag == 0.0)
     pes->mag = rStarNot;
   else if (us.fStarMagDist && pes->mag != rStarNot)
-    pes->mag = RStarBright(pes->mag, dist1, dist2);
+    pes->mag = RStarBright(pes->mag, dist1,
+      us.fStarMagAbs ? 10.0 * rPCToAU : dist2);
 
   // Adjust star coordinates if needed.
   if (us.rHarmonic != 1.0)
@@ -2981,7 +3077,7 @@ LNext:
     if (FSzSet(pch)) {
       for (pchT = pch; *pchT && *pchT != chSep && *pchT != chSep2; pchT++)
         ;
-      chT = *pchT; *pchT = chNull;      
+      chT = *pchT; *pchT = chNull;
       pes->ki = NParseSz(pch, pmColor);
       *pchT = chT;
     }
@@ -3225,7 +3321,7 @@ LNext:
     if (FSzSet(pch)) {
       for (pchT = pch; *pchT && *pchT != chSep && *pchT != chSep2; pchT++)
         ;
-      chT = *pchT; *pchT = chNull;      
+      chT = *pchT; *pchT = chNull;
       pes->ki = NParseSz(pch, pmColor);
       *pchT = chT;
     }

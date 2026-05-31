@@ -1,8 +1,8 @@
 /*
-** Astrolog (Version 7.80) File: wdriver.cpp
+** Astrolog (Version 8.00) File: wdriver.cpp
 **
 ** IMPORTANT NOTICE: Astrolog and all chart display routines and anything
-** not enumerated below used in this program are Copyright (C) 1991-2025 by
+** not enumerated below used in this program are Copyright (C) 1991-2026 by
 ** Walter D. Pullen (Astara@msn.com, http://www.astrolog.org/astrolog.htm).
 ** Permission is granted to freely use, modify, and distribute these
 ** routines provided these credits and notices remain unmodified with any
@@ -48,7 +48,7 @@
 ** Initial programming 8/28-30/1991.
 ** X Window graphics initially programmed 10/23-29/1991.
 ** PostScript graphics initially programmed 11/29-30/1992.
-** Last code change made 6/19/2025.
+** Last code change made 5/28/2026.
 */
 
 #include "astrolog.h"
@@ -68,7 +68,7 @@
 int NProcessSwitchesW(int argc, char **argv, int pos,
   flag fOr, flag fAnd, flag fNot)
 {
-  int darg = 0, xo, yo, i;
+  int darg = 0, xo, yo, i, j;
   char sz[cchSzMax], ch1, ch2;
   RECT rc;
 
@@ -97,13 +97,24 @@ int NProcessSwitchesW(int argc, char **argv, int pos,
     if (FErrorArgc("WM", argc, 2))
       return tcError;
     i = NFromSz(argv[1]);
-    if (FErrorValN("WM", !FValidMacro(i), i, 1))
-      return tcError;
-    i--;
-    sprintf(sz, "%s\t%sF%d", argv[2], i < 12 ? "" : (i < 24 ? "Shift+" :
-      (i < 36 ? "Ctrl+" : "Alt+")), i % 12 + 1);
-    ModifyMenu(wi.hmenu, (WORD)(cmdMacro01 + i), MF_BYCOMMAND | MF_STRING,
-      (WORD)(cmdMacro01 + i), sz);
+    if (ch1 != '0') {
+      if (FErrorValN("WM", !FValidMacro2(i), i, 1))
+        return tcError;
+      i--;
+      j = i/12;
+      sprintf(sz, "%s\t%s%s%sF%d", argv[2],
+        j == 2 || j == 4 || j >= 6           ? "Ctrl+"  : "",
+        j == 3 || j >= 5                     ? "Alt+"   : "",
+        j == 1 || j == 4 || j == 5 || j == 7 ? "Shift+" : "", i % 12 + 1);
+      ModifyMenu(wi.hmenu, (WORD)(cmdMacro01 + i), MF_BYCOMMAND | MF_STRING,
+        (WORD)(cmdMacro01 + i), sz);
+      wi.rgfM[i] = fTrue;
+    } else {
+      if (FErrorValN("WM0", !FBetween(i, 0, cMSub-1), i, 1))
+        return tcError;
+      ModifyMenu(wi.hmenuEdit, i+2, MF_BYPOSITION | MF_STRING, i+2, argv[2]);
+      wi.rgfME[i] = fTrue;
+    }
     darg += 2;
     break;
 
@@ -149,6 +160,24 @@ int NProcessSwitchesW(int argc, char **argv, int pos,
       sprintf(sz, "%s %s", szAppName, szVersionCore);
     SetWindowText(wi.hwnd, sz);
     darg++;
+    break;
+
+  case 'x':
+    if (FErrorArgc("Wx", argc, 1))
+      return tcError;
+    i = NFromSz(argv[1]);
+    if (FErrorValN("Wx", !FValidAntialias(i), i, 0))
+      return tcError;
+    wi.nAntialias = i;
+    if (fOr)
+      gs.fAntialias = fTrue;
+    else if (fAnd)
+      gs.fAntialias = fFalse;
+    darg++;
+    break;
+
+  case 'b':
+    SwitchF(wi.fBmpWindow);
     break;
 
   case 'o':
@@ -267,6 +296,7 @@ void DoPopup(int imenu, HWND hwnd, LPARAM lParam)
   hmenu = LoadMenu(NULL, MAKEINTRESOURCE(imenu));
   hmenu = GetSubMenu(hmenu, 0);
 
+  // Place check marks by menu commands whose settings are active.
   switch (imenu) {
   case menuV:
     CheckPopup(cmdRelComparison,   us.nRel != rcNone);
@@ -288,6 +318,7 @@ void DoPopup(int imenu, HWND hwnd, LPARAM lParam)
     CheckPopup(cmdGraphicsEquator, !gs.fEquator);
     CheckPopup(cmdGraphicsAspect,  gs.fLabelAsp);
     CheckPopup(cmdGraphicsLabel,   !gs.fLabel);
+    CheckPopup(cmdGraphicsCity,    gs.fLabelCity);
     CheckPopup(cmdGraphicsSidebar, gs.fDoSidebar);
     break;
   case menuG:
@@ -326,6 +357,7 @@ void DoPopup(int imenu, HWND hwnd, LPARAM lParam)
     CheckPopup(cmdGraphicsHouse,   !gs.fHouseExtra);
     CheckPopup(cmdGraphicsEquator, gs.fEquator);
     CheckPopup(cmdGraphicsAspect,  gs.fLabelAsp);
+    CheckPopup(cmdGraphicsCity,    gs.fLabelCity);
     CheckPopup(cmdGraphicsLabel,   gs.fLabel);
     CheckPopup(cmdGraphicsModify,  !gs.fAlt);
     break;
@@ -341,6 +373,7 @@ void DoPopup(int imenu, HWND hwnd, LPARAM lParam)
     CheckPopup(cmdChartModify,    us.fCalendarYear);
     CheckPopup(cmdGraphicsAspect, gs.fLabelAsp);
     CheckPopup(cmdRelComparison,  us.nRel < rcNone);
+    CheckPopup(cmdHouseSetIndian, us.fIndian);
     CheckPopup(cmdGraphicsModify, gs.fAlt);
     CheckPopup(cmdGraphicsText,   !gs.fText);
     CheckPopup(cmdGraphicsLabel,  gs.fLabel);
@@ -363,6 +396,8 @@ void DoPopup(int imenu, HWND hwnd, LPARAM lParam)
     CheckPopup(cmdGraphicsBmp,    gi.fBmp);
     CheckPopup(cmdChartModify,    us.fLatitudeCross);
     CheckPopup(cmdGraphicsModify, gs.fAlt);
+    CheckPopup(cmdGraphicsCity,   gs.fLabelCity);
+    CheckPopup(cmdGraphicsAspect, gs.fLabelAsp);
     break;
   case menuE:
     CheckPopup(cmdChartModify,     us.nEphemYears != 0);
@@ -381,7 +416,7 @@ void DoPopup(int imenu, HWND hwnd, LPARAM lParam)
     break;
   case menuN:
     CheckPopup(cmdHouseSetIndian,  !us.fIndian);
-    CheckPopup(cmdChartModify,     gs.fSouth);
+    CheckPopup(cmdGraphicsAxis,    gs.fEcliptic);
     CheckPopup(cmdGraphicsEquator, gs.fEquator);
     CheckPopup(cmdGraphicsHouse,   gs.fHouseExtra);
     CheckPopup(cmdGraphicsCity,    !gs.fLabelCity);
@@ -399,6 +434,7 @@ void DoPopup(int imenu, HWND hwnd, LPARAM lParam)
   case menuB:
     CheckPopup(cmdParallel,       us.fParallel);
     CheckPopup(cmdChartModify,    us.fGraphAll);
+    CheckPopup(cmdHouseSetIndian, us.fIndian);
     CheckPopup(cmdGraphicsModify, !gs.fAlt);
     break;
   case menuY:
@@ -472,12 +508,18 @@ void DoPopup(int imenu, HWND hwnd, LPARAM lParam)
     CheckPopup(cmdSecond,     us.fSeconds);
     CheckPopup(cmdHouseSet3D, us.fHouse3D);
     break;
+  case menu_K:
+    CheckPopup(cmdHouseSetIndian, us.fIndian);
+    break;
+  case menu_J:
+    CheckPopup(cmdHouseSetIndian, us.fIndian);
+    CheckPopup(cmdSecond,         us.fSeconds);
+    break;
   case menu_L:
     CheckPopup(cmdHouseSet3D, us.fHouse3D);
     CheckPopup(cmdSecond,     us.fSeconds);
     break;
-  case menu_S: case menu_H: case menu_J: case menu_P: case menu_I:
-  case menu_N:
+  case menu_S: case menu_H: case menu_P: case menu_I: case menu_N:
     CheckPopup(cmdSecond, us.fSeconds);
     break;
   case menu_E: case menu_D: case menu_8:
@@ -489,7 +531,8 @@ void DoPopup(int imenu, HWND hwnd, LPARAM lParam)
     CheckPopup(cmdHouseSet3D, !us.fHouse3D);
     break;
   case menu_B:
-    CheckPopup(cmdParallel, us.fParallel);
+    CheckPopup(cmdParallel,       us.fParallel);
+    CheckPopup(cmdHouseSetIndian, us.fIndian);
     break;
   case menu_T:
     CheckPopup(cmdParallel, us.fParallel);
@@ -549,6 +592,10 @@ int PASCAL WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   DeleteMenu(wi.hmenu, cmdSavePicture, MF_BYCOMMAND);
   DeleteMenu(wi.hmenu, cmdCopyPicture, MF_BYCOMMAND);
 #endif
+#ifndef SVG
+  DeleteMenu(wi.hmenu, cmdSaveSVG, MF_BYCOMMAND);
+  DeleteMenu(wi.hmenu, cmdCopySVG, MF_BYCOMMAND);
+#endif
 #ifndef WIRE
   DeleteMenu(wi.hmenu, cmdSaveWire, MF_BYCOMMAND);
   DeleteMenu(wi.hmenu, cmdCopyWire, MF_BYCOMMAND);
@@ -581,6 +628,8 @@ int PASCAL WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   DeleteMenu(wi.hmenu, cmdSetupExtension, MF_BYCOMMAND);
   DeleteMenu(wi.hmenu, cmdUnsetup,        MF_BYCOMMAND);
 #endif
+  wi.hmenuEdit = GetSubMenu(wi.hmenu, 1);
+
   wi.hwndMain = CreateWindow(
     szAppName,
     szAppNameCore " " szVersionCore,
@@ -709,7 +758,7 @@ LRESULT API WndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
       case -1:
         return DefWindowProc(hwnd, wMsg, wParam, lParam);
       default:
-        iParam = (int)wParam & 0xFFFF;
+        iParam = (int)wParam & 0xffff;
         wi.fSkipSystem = (iParam == cmdMacro10/*F10*/ || iParam ==
           cmdMacro22/*Shift+F10*/ || iParam == cmdMacro34/*Ctrl+F10*/ ||
           iParam == cmdMacro40/*Alt+F4*/);
@@ -721,7 +770,7 @@ LRESULT API WndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
     // invoked by a hotkey which ran a macro, to avoid both effects happening.
 
     case WM_SYSCOMMAND:
-      iParam = (int)wParam & 0xFFF0;
+      iParam = (int)wParam & 0xfff0;
       if (wi.fSkipSystem && (iParam == SC_KEYMENU || iParam == SC_CLOSE)) {
         wi.fSkipSystem = fFalse;
         break;
@@ -736,7 +785,7 @@ LRESULT API WndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
     case WM_ERASEBKGND:
       if (!(wi.fNoUpdate & 1) && !wi.fBuffer) {
         GetClipBox((HDC)wParam, &rc);
-        hbr = CreateSolidBrush(rgbbmp[gi.kiOff]);
+        hbr = CreateSolidBrush(KvFromKi(gi.kiOff));
         FillRect((HDC)wParam, &rc, hbr);
         DeleteObject(hbr);
       }
@@ -831,7 +880,7 @@ LRESULT API WndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
 
       // Alt+click on a world map chart means relocate the chart there.
       if (wMsg == WM_LBUTTONDOWN && GetKeyState(VK_MENU) < 0) {
-        if (fMap && !gs.fConstel && !gs.fMollewide) {
+        if (fMap && !gs.fConstel && !gs.fMollweide) {
           Lon = rDegHalf -
             Mod((real)(x-gi.xOffset) / (real)gs.xWin*rDegMax - gs.rRot);
           if (Lon < -rDegHalf)
@@ -851,8 +900,9 @@ LRESULT API WndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
         break;
       }
       hdc = GetDC(hwnd);
-      hpen = (HPEN)CreatePen(PS_SOLID, !gs.fThick ? 0 : 2,
-        (COLORREF)rgbbmp[gi.kiPen]);
+      iParam = (!gs.fThick ? 0 : 2) + gs.nThickAdjust;
+      hpen = (HPEN)CreatePen(PS_SOLID, Max(iParam, 0),
+        (COLORREF)KvFromKi(gi.kiPen));
       hpenOld = (HPEN)SelectObject(hdc, hpen);
 
       // Ctrl+click means draw a rectangle. Ctrl+Shift+click does ellipse.
@@ -875,7 +925,7 @@ LRESULT API WndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
 
       // A simple click means set a pixel and remember that location.
       } else {
-        SetPixel(hdc, x, y, (COLORREF)rgbbmp[gi.kiPen]);
+        SetPixel(hdc, x, y, (COLORREF)KvFromKi(gi.kiPen));
         wi.xMouse = x; wi.yMouse = y;
       }
       SelectObject(hdc, hpenOld);
@@ -1181,8 +1231,10 @@ int NWmCommand(WORD wCmd)
   real r;
   flag fGraphicsSav, fRestoreSize = fFalse, fT;
 #ifdef CONSTEL
+#ifdef SWISS
   CONST char **ppch;
 #endif
+#endif // CONSTEL
 
 #ifdef EXPRESS
   // May want to adjust current command if AstroExpression says to do so.
@@ -1214,6 +1266,7 @@ int NWmCommand(WORD wCmd)
   case cmdSaveList:
   case cmdSaveAAF:
   case cmdSaveQuick:
+  case cmdSaveCalendar:
   case cmdSaveText:
   case cmdSaveBitmap:
 #ifdef META
@@ -1221,6 +1274,9 @@ int NWmCommand(WORD wCmd)
 #endif
 #ifdef PS
   case cmdSavePS:
+#endif
+#ifdef SVG
+  case cmdSaveSVG:
 #endif
 #ifdef WIRE
   case cmdSaveWire:
@@ -1248,6 +1304,10 @@ int NWmCommand(WORD wCmd)
   case cmdOpenWorld:
     wi.nDlgChart = -1;
     DlgOpenChart();
+    break;
+
+  case cmdSettingFile:
+    WiDoDialog(DlgFile, dlgFile);
     break;
 
   case cmdPrint:
@@ -1288,6 +1348,9 @@ int NWmCommand(WORD wCmd)
 #ifdef PS
   case cmdCopyPS:
 #endif
+#ifdef SVG
+  case cmdCopySVG:
+#endif
 #ifdef WIRE
   case cmdCopyWire:
 #endif
@@ -1298,6 +1361,7 @@ int NWmCommand(WORD wCmd)
     case cmdCopyBitmap:  gs.ft = ftBmp; gs.chBmpMode = 'B'; break;
     case cmdCopyPicture: gs.ft = ftWmf;  break;
     case cmdCopyPS:      gs.ft = ftPS;   break;
+    case cmdCopySVG:     gs.ft = ftSVG;  break;
     case cmdCopyWire:    gs.ft = ftWire; break;
     }
     us.fGraphics = wi.fRedraw = fTrue;
@@ -1903,6 +1967,7 @@ int NWmCommand(WORD wCmd)
     gs.nScale = (int)(wCmd - cmdScale1) + 1;
     gs.nScale *= 100;
     WiRadioMenu(cmdScale1, cmdScale2, wCmd);
+    gs.fAutoScale = fFalse;
     wi.fRedraw = fTrue;
     break;
 
@@ -1910,6 +1975,7 @@ int NWmCommand(WORD wCmd)
     if (gs.nScale > 100) {
       gs.nScale -= 100;
       WiRadioMenu(cmdScale1, cmdScale4, cmdScale1 + gs.nScale/100 - 1);
+      gs.fAutoScale = fFalse;
       wi.fRedraw = fTrue;
     }
     break;
@@ -1918,6 +1984,7 @@ int NWmCommand(WORD wCmd)
     if (gs.nScale < MAXSCALE) {
       gs.nScale += 100;
       WiRadioMenu(cmdScale1, cmdScale4, cmdScale1 + gs.nScale/100 - 1);
+      gs.fAutoScale = fFalse;
       wi.fRedraw = fTrue;
     }
     break;
@@ -1925,13 +1992,15 @@ int NWmCommand(WORD wCmd)
   case cmdTextDecrease:
     if (gs.nScaleText > 100) {
       gs.nScaleText -= 50;
+      gs.fAutoScale = fFalse;
       wi.fRedraw = fTrue;
     }
     break;
 
   case cmdTextIncrease:
-    if (gs.nScaleText < 400) {
+    if (gs.nScaleText < MAXSCALE) {
       gs.nScaleText += 50;
+      gs.fAutoScale = fFalse;
       wi.fRedraw = fTrue;
     }
     break;
@@ -2011,6 +2080,7 @@ int NWmCommand(WORD wCmd)
     break;
 
 #ifdef CONSTEL
+#ifdef SWISS
   case cmdGraphicsStarLine:
     inv(wi.fStarLine);
     if (wi.fStarLine) {
@@ -2027,6 +2097,7 @@ int NWmCommand(WORD wCmd)
     us.fGraphics = wi.fRedraw = fTrue;
     break;
 #endif
+#endif // CONSTEL
 
   case cmdGraphicsHouse:
     inv(gs.fHouseExtra);
@@ -2047,10 +2118,6 @@ int NWmCommand(WORD wCmd)
     break;
 
   case cmdGraphicsBmp:
-    if (!gi.fBmp && gi.bmpBack.rgb == NULL &&
-      gi.nMode != gLocal && gi.nMode != gAstroGraph && gi.nMode != gRising &&
-      gi.nMode != gWorldMap && gi.nMode != gGlobe && gi.nMode != gPolar)
-      wi.nMode = gGlobe;
     inv(gi.fBmp);
     WiCheckMenu(cmdGraphicsBmp, gi.fBmp);
     us.fGraphics = wi.fRedraw = fTrue;
@@ -2062,21 +2129,29 @@ int NWmCommand(WORD wCmd)
     us.fGraphics = wi.fRedraw = fTrue;
     break;
 
-  case cmdTiltZero:
-    if (gi.nMode != gTelescope && gi.nMode != gSphere && gi.nMode != gGlobe)
-      wi.nMode = gGlobe;
-    if (gs.rTilt != 0.0) {
-      gs.rTilt = 0.0;
-      wi.fRedraw = fTrue;
+  case cmdRotateWest:
+  case cmdRotateEast:
+    if (gi.nMode == gMidpoint || gi.nMode == gTelescope) {
+      if (gi.nMode == gMidpoint && gs.objTrack >= 0)
+        gs.rRot = planet[gs.objTrack];
+      gs.objTrack = -1;
     }
-    us.fGraphics = fTrue;
+    r = (real)NAbs(gi.nDir) *
+      (gi.nMode == gTelescope || gi.nMode == gLocal ? gi.zViewRatio : 1.0);
+    if (wCmd == cmdRotateWest) {
+      gs.rRot += r;
+      if (gs.rRot >= rDegMax)
+        gs.rRot -= rDegMax;
+    } else {
+      gs.rRot -= r;
+      if (gs.rRot < 0)
+        gs.rRot += rDegMax;
+    }
+    us.fGraphics = wi.fRedraw = fTrue;
     break;
 
   case cmdTiltNorth:
   case cmdTiltSouth:
-    if (gi.nMode != gLocal &&
-      gi.nMode != gSphere && gi.nMode != gGlobe && gi.nMode != gTelescope)
-      wi.nMode = gGlobe;
     r = (real)NAbs(gi.nDir) *
       (gi.nMode == gTelescope || gi.nMode == gLocal ? gi.zViewRatio : 1.0);
     if (wCmd == cmdTiltNorth) {
@@ -2099,36 +2174,18 @@ int NWmCommand(WORD wCmd)
     us.fGraphics = fTrue;
     break;
 
-  case cmdRotateWest:
-  case cmdRotateEast:
-    if (gi.nMode != gMidpoint && gi.nMode != gLocal &&
-      gi.nMode != gAstroGraph && gi.nMode != gSphere &&
-      gi.nMode != gWorldMap && gi.nMode != gGlobe && gi.nMode != gPolar &&
-      gi.nMode != gTelescope)
+  case cmdTiltZero:
+    if (gi.nMode != gTelescope && gi.nMode != gSphere && gi.nMode != gGlobe)
       wi.nMode = gGlobe;
-    if (gi.nMode == gMidpoint || gi.nMode == gTelescope) {
-      if (gi.nMode == gMidpoint && gs.objTrack >= 0)
-        gs.rRot = planet[gs.objTrack];
-      gs.objTrack = -1;
+    if (gs.rTilt != 0.0) {
+      gs.rTilt = 0.0;
+      wi.fRedraw = fTrue;
     }
-    r = (real)NAbs(gi.nDir) *
-      (gi.nMode == gTelescope || gi.nMode == gLocal ? gi.zViewRatio : 1.0);
-    if (wCmd == cmdRotateWest) {
-      gs.rRot += r;
-      if (gs.rRot >= rDegMax)
-        gs.rRot -= rDegMax;
-    } else {
-      gs.rRot -= r;
-      if (gs.rRot < 0)
-        gs.rRot += rDegMax;
-    }
-    us.fGraphics = wi.fRedraw = fTrue;
+    us.fGraphics = fTrue;
     break;
 
   case cmdZoomOut:
   case cmdZoomIn:
-    if (gi.nMode != gOrbit && gi.nMode != gLocal && gi.nMode != gTelescope)
-      wi.nMode = gOrbit;
     r = gs.rspace;
     if (r < rSmall)
       r = (real)(1 << (4-gi.nScale/gi.nScaleT));
@@ -2143,8 +2200,6 @@ int NWmCommand(WORD wCmd)
     break;
 
   case cmdChartIndian:
-    if (!us.fListing && !us.fWheel)
-      wi.nMode = gWheel;
     inv(gs.fIndianWheel);
     WiCheckMenu(cmdChartIndian, gs.fIndianWheel);
     us.fGraphics = wi.fRedraw = fTrue;
@@ -2186,7 +2241,7 @@ int NWmCommand(WORD wCmd)
     inv(us.nEphemYears);
     inv(us.fGraphAll);
     inv(gs.fSouth);
-    inv(gs.fMollewide);
+    inv(gs.fMollweide);
     gi.nMode = (gi.nMode == gWheel ? gHouse :
       (gi.nMode == gHouse ? gWheel : gi.nMode));
     us.fGraphics = wi.fRedraw = fTrue;
@@ -2431,9 +2486,9 @@ int NWmCommand(WORD wCmd)
     break;
 
   default:
-    if (FBetween(wCmd, cmdMacro01, cmdMacro48)) {
+    if (FBetween(wCmd, cmdMacro01, cmdMacro01 + cMacro - 1)) {
       i = (int)wCmd - cmdMacro01 + 1;
-      if (is.rgszMacro != NULL && is.rgszMacro[i]) {
+      if (is.rgszMacro != NULL && FSzSet(is.rgszMacro[i])) {
         FProcessCommandLine(is.rgszMacro[i]);
         wi.fCast = wi.fMenuAll = fTrue;
       } else if (i == 1/*F1*/ || i == 40/*Alt+F4*/) {
@@ -2530,7 +2585,7 @@ void API RedoMenu()
   CheckMenu(cmdGraphicsAxis, gs.fEcliptic);
   CheckMenu(cmdChartIndian, gs.fIndianWheel);
   CheckMenu(cmdGraphicsModify, gs.fAlt);
-  RadioMenu(cmdPen00, cmdPen15, cmdPen00 + gi.kiPen);
+  RadioMenu(cmdPen00, cmdPen15, cmdPen00 + (gi.kiPen >= 0 ? gi.kiPen : -1));
   CheckMenu(cmdAnimateNo, gs.nAnim > 0);
   RadioMenu(cmdAnimateNo1, cmdAnimateNo_13, cmdAnimateNo + NAbs(gs.nAnim));
   RadioMenu(cmdAnimateF1, cmdAnimateF9, cmdAnimateF1 + NAbs(gi.nDir) - 1);
@@ -2584,30 +2639,62 @@ void API RedoMenu()
 }
 
 
-#ifdef DEBUG
+#ifdef WIN
+CONST char *rgszFontFile[cFont] = {"", "", "Astro.ttf", "EnigmaAstrology.ttf",
+  "HamburgSymbols.ttf", "Astronomicon.ttf", "StarFontSans.ttf",
+  "StarFontSerif.ttf", "HanksNakshatra.ttf", "", "", "", "", ""};
+flag rgfFontInstalled[cFont] = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
 // Determine whether a Windows font is installed. Have to enumarate all fonts
 // on the system, and compare them to the font being searched for.
 
 static int CALLBACK EnumFontFamExProc(ENUMLOGFONTEX *pelf,
   NEWTEXTMETRICEX *pntm, int nFontType, LPARAM lParam)
 {
-  LPARAM *pl = (LPARAM *)lParam;
+  CONST char *szFont = (char *)&pelf->elfFullName;
+  int i;
 
-  *pl = 1;
-  return fTrue;
+  for (i = 0; i < cFont; i++)
+    if (FEqSz(szFont, rgszFontName[i])) {
+      rgfFontInstalled[i] = fTrue;
+      break;
+    }
+  return 1;  // Continue enumerating fonts
 }
 
-flag FFontInstalled(CONST char *sz)
+flag FEnsureFontInstalled(int fi)
 {
-  LOGFONT lf;
-  LPARAM lParam = 0;
+  static flag fCheckedInstall = fFalse;
+  HDC hdc;
+  char sz[cchSzMax];
+  FILE *file;
 
-  ClearB((pbyte)&lf, sizeof(lf));
-  lf.lfCharSet = DEFAULT_CHARSET;
-  strcpy(lf.lfFaceName, sz);
-  EnumFontFamiliesEx(GetDC(NULL), &lf, (FONTENUMPROC)EnumFontFamExProc,
-    (LPARAM)&lParam, 0);
-  return lParam ? fTrue : fFalse;
+  if (!fCheckedInstall) {
+    // Check whether fonts are installed.
+    hdc = GetDC(NULL);
+    if (hdc == NULL)
+      return fFalse;
+    EnumFontFamiliesEx(hdc, NULL, (FONTENUMPROC)EnumFontFamExProc,
+      (LPARAM)0, 0);
+    ReleaseDC(NULL, hdc);
+    fCheckedInstall = fTrue;
+  }
+  if (rgfFontInstalled[fi] > 0)
+    return fTrue;  // Font already installed.
+  if (rgfFontInstalled[fi] < 0)
+    return fFalse;  // Font already failed to be installed.
+
+  rgfFontInstalled[fi] = -1;
+  if (!FSzSet(rgszFontFile[fi]))
+    return fFalse;  // Definitely don't have this font file.
+  file = FileOpen(rgszFontFile[fi], 2, sz);
+  if (file == NULL)
+    return fFalse;  // Couldn't find font file.
+  fclose(file);
+  if (AddFontResourceEx(sz, FR_PRIVATE, NULL) == 0)
+    return fFalse;  // Failed to install font.
+  rgfFontInstalled[fi] = 2;
+  return fTrue;
 }
 #endif
 
@@ -2616,7 +2703,6 @@ flag FFontInstalled(CONST char *sz)
 
 flag FFilePaste(void)
 {
-  char szTmp[cchSzMax];
   HFILE hfile;
   LONG lSize;
   HGLOBAL hglobal;
@@ -2642,8 +2728,7 @@ flag FFilePaste(void)
     return fFalse;
 
   // Create a temporary file.
-  sprintf(szTmp, "%s.tmp", szAppName);
-  hfile = _lcreat(szTmp, 0);
+  hfile = _lcreat(szFileTemp, 0);
   if (hfile == HFILE_ERROR)
     return fFalse;
 
@@ -2656,10 +2741,10 @@ flag FFilePaste(void)
 
   // Load the file's contents into the program.
   if (fText)
-    FInputData(szTmp);
+    FInputData(szFileTemp);
   else
-    FLoadBmp(szTmp, &gi.bmpBack, fTrue);
-  _unlink(szTmp);
+    FLoadBmp(szFileTemp, &gi.bmpBack, fTrue);
+  _unlink(szFileTemp);
   CloseClipboard();
   return fTrue;
 }
@@ -2678,8 +2763,8 @@ flag API FRedraw(void)
   HFONT hfontOld = NULL;
   char szFile[cchSzDef];
   int nScrollRow, i;
-  flag fSmartText = fFalse, fAnsiColor, fAnsiChar,
-    fSmartHTML = fFalse, fInverse;
+  flag fSmartText = fFalse, fAnsiColor, fAnsiChar, fSmartHTML = fFalse,
+    fInverse;
 
   // Local variables used for copying to the Windows clipboard.
   HFILE hfile;
@@ -2699,16 +2784,27 @@ flag API FRedraw(void)
   }
   HourglassOn;
   ClearB((pbyte)&ps, sizeof(PAINTSTRUCT));
+
+  wi.fSmoothZoom = fFalse;
   if (wi.hdcPrint != hdcNil)
     wi.hdc = wi.hdcPrint;
   else {
     hdcWin = BeginPaint(wi.hwnd, &ps);
     if (wi.fBuffer) {
+      if (gs.fAntialias && wi.nAntialias > 1 && us.fGraphics &&
+        gs.ft == ftNone)
+        wi.fSmoothZoom = fTrue;
       wi.hdc = CreateCompatibleDC(hdcWin);
-      wi.hbmp = CreateCompatibleBitmap(hdcWin, wi.xClient, wi.yClient);
-      hbmpOld = (HBITMAP)SelectObject(wi.hdc, wi.hbmp);
-      if (gs.fJetTrail)
-        BitBlt(wi.hdc, 0, 0, wi.xClient, wi.yClient, hdcWin, 0, 0, SRCCOPY);
+      if (!wi.fSmoothZoom) {
+        wi.hbmp = CreateCompatibleBitmap(hdcWin, wi.xClient, wi.yClient);
+        hbmpOld = (HBITMAP)SelectObject(wi.hdc, wi.hbmp);
+        if (gs.fJetTrail)
+          BitBlt(wi.hdc, 0, 0, wi.xClient, wi.yClient, hdcWin, 0, 0, SRCCOPY);
+      } else {
+        wi.hbmp = CreateCompatibleBitmap(hdcWin,
+          wi.xClient*wi.nAntialias, wi.yClient*wi.nAntialias);
+        hbmpOld = (HBITMAP)SelectObject(wi.hdc, wi.hbmp);
+      }
     } else
       wi.hdc = hdcWin;
   }
@@ -2734,7 +2830,10 @@ flag API FRedraw(void)
     if (gs.nFontTxt > 0) {
       wi.xChar = 3 + 3*i;
       wi.yChar = (wi.xChar * 3 + 1) / 2;
-      wi.hfont = CreateFont(wi.xChar*2, 0, 0, 0, !gs.fThick ? 400 : 800,
+      i = wi.xChar*2;
+      if (gs.nFontTxt == fiLucida)
+        i -= 5;
+      wi.hfont = CreateFont(i, 0, 0, 0, !gs.fThick ? 400 : 800,
         fFalse, fFalse, fFalse, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
         CLIP_DEFAULT_PRECIS, PROOF_QUALITY, FIXED_PITCH | FF_MODERN,
         rgszFontName[gs.nFontTxt]);
@@ -2772,17 +2871,22 @@ flag API FRedraw(void)
   // Create the chart again if also autosaving chart to file.
 
   if (wi.fAutoSave && us.fGraphics &&
-    (!wi.fAutoSaveWire ? gs.ft != ftBmp : gs.ft != ftWire)) {
+    gs.ft != (!wi.fAutoSaveWire ? ftBmp : ftWire)) {
     gs.ft = !wi.fAutoSaveWire ? ftBmp : ftWire;
     if (!wi.fAutoSaveNum)
       sprintf(szFile, "%s",
         !wi.fAutoSaveWire ? szFileAutoCore : "astrolog.dw");
     else {
-      sprintf(szFile, "ast%05d.%s",
-        wi.nAutoSaveNum, !wi.fAutoSaveWire ? "bmp" : "dw");
+      sprintf(szFile, "ast%05d.%s", wi.nAutoSaveNum,
+        !wi.fAutoSaveWire ? (gs.chBmpMode != 'P' ? "bmp" : "png") : "dw");
       wi.nAutoSaveNum++;
     }
     FCloneSz(szFile, &gi.szFileOut);
+    if (gs.ft == ftBmp && wi.fSmoothZoom) {
+      FBmpShrinkToWin(wi.hdc, wi.hbmp, hdcWin);
+      gs.xWin /= wi.nScaleWin; gs.yWin /= wi.nScaleWin;
+      gs.nScale /= wi.nScaleWin; gi.nScaleTextT2 /= wi.nScaleWin;
+    }
     Action();
     FCloneSz(NULL, &gi.szFileOut);
     if (gs.ft == ftWire) {
@@ -2807,8 +2911,14 @@ flag API FRedraw(void)
   }
   if (wi.hdcPrint == hdcNil) {
     if (wi.fBuffer) {
-      BitBlt(hdcWin, 0, 0, wi.xClient, wi.yClient,
-        wi.hdc, -gi.xOffset, -gi.yOffset, SRCCOPY);
+      if (!wi.fSmoothZoom) {
+        BitBlt(hdcWin, 0, 0, wi.xClient, wi.yClient,
+          wi.hdc, -gi.xOffset, -gi.yOffset, SRCCOPY);
+      } else {
+        FBmpShrinkToWin(wi.hdc, wi.hbmp, hdcWin);
+        gs.xWin /= wi.nScaleWin; gs.yWin /= wi.nScaleWin;
+        gs.nScale /= wi.nScaleWin; gi.nScaleTextT2 /= wi.nScaleWin;
+      }
       SelectObject(wi.hdc, hbmpOld);
       DeleteObject(wi.hbmp);
       DeleteDC(wi.hdc);
@@ -2839,21 +2949,14 @@ flag API FRedraw(void)
 
   if (is.szFileScreen != NULL || gs.ft != ftNone) {
     FCloneSz(NULL, &is.szFileScreen);
-    if (gs.ft == ftWmf) {
-      gs.xWin /= METAMUL; gs.yWin /= METAMUL; gs.nScale /= METAMUL;
-    } else if (gs.ft == ftPS) {
-      gs.xWin /= PSMUL; gs.yWin /= PSMUL; gs.nScale /= PSMUL;
-    } else if (gs.ft == ftWire) {
-      gs.xWin /= WIREMUL; gs.yWin /= WIREMUL; gs.nScale /= WIREMUL;
-    }
     gs.ft = ftNone;
 
     // To copy charts to the clipboard, Astrolog saves the chart to a temp
     // file, then copies the contents of that file to the clipboard.
 
-    if (wi.wCmd == cmdCopyText ||
-      wi.wCmd == cmdCopyBitmap || wi.wCmd == cmdCopyPicture ||
-      wi.wCmd == cmdCopyPS || wi.wCmd == cmdCopyWire) {
+    if (wi.wCmd == cmdCopyText || wi.wCmd == cmdCopyBitmap ||
+      wi.wCmd == cmdCopyPicture || wi.wCmd == cmdCopyPS ||
+      wi.wCmd == cmdCopySVG || wi.wCmd == cmdCopyWire) {
       hfile = _lopen(szFileTemp, OF_READ);
       if (hfile == HFILE_ERROR)
         return fFalse;
@@ -3064,6 +3167,7 @@ flag FCreateProgramGroup(flag fAll)
   DeleteShortcut(szDir, "Astrolog 7.50");
   DeleteShortcut(szDir, "Astrolog 7.60");
   DeleteShortcut(szDir, "Astrolog 7.70");
+  DeleteShortcut(szDir, "Astrolog 7.80");
 
   // Add main shortcuts in folder.
   sprintf(szName, "%s %s", szAppName, szVersionCore);

@@ -1,8 +1,8 @@
 /*
-** Astrolog (Version 7.80) File: xcharts2.cpp
+** Astrolog (Version 8.00) File: xcharts2.cpp
 **
 ** IMPORTANT NOTICE: Astrolog and all chart display routines and anything
-** not enumerated below used in this program are Copyright (C) 1991-2025 by
+** not enumerated below used in this program are Copyright (C) 1991-2026 by
 ** Walter D. Pullen (Astara@msn.com, http://www.astrolog.org/astrolog.htm).
 ** Permission is granted to freely use, modify, and distribute these
 ** routines provided these credits and notices remain unmodified with any
@@ -48,7 +48,7 @@
 ** Initial programming 8/28-30/1991.
 ** X Window graphics initially programmed 10/23-29/1991.
 ** PostScript graphics initially programmed 11/29-30/1992.
-** Last code change made 6/19/2025.
+** Last code change made 5/28/2026.
 */
 
 #include "astrolog.h"
@@ -64,7 +64,7 @@
 // Return whether the specified object should be displayed in the current
 // graphics chart type. For example, don't include the Moon in the solar
 // system charts when ephemeris files are off, don't include house cusps
-// in astro-graph charts, and so on, in addition to checking restrictions.
+// in astrocartography charts, and so on, in addition to checking restrictions.
 
 flag FProper(int i)
 {
@@ -72,21 +72,25 @@ flag FProper(int i)
   int j;
 
   f = !ignore[i];
-  if (gi.nMode == gWheel || gi.nMode == gHouse) {
-    if (gs.fMoonWheel) {
+  if (f) {
+    if (gs.fMoonWheel && (gi.nMode == gWheel || gi.nMode == gHouse ||
+      gi.nMode == gMidpoint || gi.nMode == gHorizon || gi.nMode == gOrbit ||
+      gi.nMode == gSector || FBetween(gi.nMode, gSphere, gTelescope))) {
       // Planetary moons will be drawn separately, so don't display here.
       j = ObjOrbit(i);
-      if (!ignore[j] && FHasMoon(j) && j != us.objCenter)
+      if (!ignore[j] && FHasMoon(j) &&
+        !(j == us.objCenter && gi.nMode != gOrbit))
         f = fFalse;
     }
-  } else if (gi.nMode == gOrbit)
-    f &= FThing(i) && (us.fEphemFiles || !FGeo(i));
-  else if (fMap || gi.nMode == gGlobe || gi.nMode == gPolar)
-    f &= FThing2(i);
-  else if (gi.nMode == gEphemeris)
-    f &= !(gs.fAlt && (i == oMoo || i == oFor));
-  else if (gi.nMode == gTraTraGra || gi.nMode == gTraNatGra)
-    f &= FProperGraph(i);
+    if (gi.nMode == gOrbit)
+      f &= FThing(i) && (us.fEphemFiles || !FGeo(i));
+    else if (fMap || gi.nMode == gGlobe || gi.nMode == gPolar)
+      f &= FThing2(i);
+    else if (gi.nMode == gEphemeris)
+      f &= !(gs.fAlt && (i == oMoo || i == oFor));
+    else if (gi.nMode == gTraTraGra || gi.nMode == gTraNatGra)
+      f &= FProperGraph(i);
+  }
   return f;
 }
 
@@ -218,8 +222,8 @@ void FillSymbolRingM(int obj, real *symbol, real factor)
 
 
 // Adjust an array of longitude positions so that no two are within a certain
-// orb of each other. This is used by the astro-graph routine to make sure no
-// planet glyphs marking the lines are drawn on top of each other. This is
+// orb of each other. This is used by the astrocartography routine to make sure
+// no planet glyphs marking the lines are drawn on top of each other. This is
 // almost identical to the FillSymbolRing() routine used by the wheel charts,
 // however there the glyphs are placed in a continuous ring, while here the
 // left and right screen edges are present. Also, here are placing two sets of
@@ -267,6 +271,106 @@ void FillSymbolLine(real *symbol)
         }
       }
   }
+}
+
+
+// Enumerate all planetary moons in a chart. For each moon, return its index,
+// planet orbited, angle around its planet, color, and letter to use when
+// drawing. Called from various charts which can draw planetary moons around
+// planet glyphs, when the -X8 setting is in effect.
+
+flag EnumMoonsRing(int *pobjM, int *pobjP, real *pang, int *pcol, char *pch,
+  flag fVertical)
+{
+  static char rgf[oPlu-oMar+1][cLetter], rgch[oNorm1];
+  static int rgcol[oNorm1], obj;
+  static real symbolM[oNorm1];
+  real ang, rx, ry, rPct;
+  int objM, objP, col, i, j;
+  char chM;
+
+  // Standard case: Return the next planetary moon and its data.
+  if (pobjM != NULL) {
+    for (; obj >= 0; obj--) {
+      if (ignore[obj])
+        continue;
+      objP = ObjOrbit(obj);
+      if (ignore[objP] || !FHasMoon(objP) ||
+        (objP == us.objCenter && gi.nMode != gOrbit) || objP == obj)
+        continue;
+      *pobjM = obj;
+      *pobjP = objP;
+      *pang = symbolM[obj];
+      *pcol = rgcol[obj];
+      *pch = rgch[obj];
+      obj--;
+      return fTrue;
+    }
+    return fFalse;    // Fail when no more planetary moons to consider.
+  }
+
+  // Initialization case: Fill internal arrays with planetary moon data.
+  ClearB((pbyte)rgf, sizeof(rgf));
+  obj = custHi;
+  for (objM = 0; objM <= custHi; objM++) {
+    if (ignore[objM])
+      continue;
+    objP = ObjOrbit(objM);
+    if (ignore[objP] || !FHasMoon(objP) ||
+      (objP == us.objCenter && gi.nMode != gOrbit) || objP == objM)
+      continue;
+    if (!fVertical) {
+      // Horizontal means show lead/follow and close/distant arrangement.
+      if (!us.fMoonMove) {
+        rx = space[objM].x - space[objP].x; ry = space[objM].y - space[objP].y;
+        ang = Mod(planet[objP] - RAngleD(rx, ry));
+      } else
+        ang = Mod(planet[objP] - planet[objM]);
+      rPct = (MinDistance(rDegHalf, ang) / rDegQuad - 1.0)*100.0;
+      col = (rPct <= -75.0 ? kObjB[oMC] : (rPct >= 75.0 ? kObjB[oNad] :
+        (FBetween(ang, rDegQuad - 22.5, rDegQuad + 22.5) ? kObjB[oDes] :
+        (FBetween(ang, 270 - 22.5, 270 + 22.5) ? kObjB[oAsc] : gi.kiGray))));
+    } else {
+      // Vertical means show lead/follow and above/below arrangement.
+      rx = planet[objP] - planet[objM];
+      ry = planetalt[objP] - planetalt[objM];
+      ang = RAngleD(-rx, ry);
+      rPct = (MinDistance(rDegHalf, ang) / rDegQuad - 1.0)*100.0;
+      col = (rPct <= -75.0 ? kObjB[oDes] : (rPct >= 75.0 ? kObjB[oAsc] :
+        (FBetween(ang, rDegQuad - 22.5, rDegQuad + 22.5) ? kRainbowB[2] :
+        (FBetween(ang, 270 - 22.5, 270 + 22.5) ? kRainbowB[7] : gi.kiGray))));
+    }
+    if (objP == us.objCenter)
+      col = gi.kiLite;
+    else if (us.fEclipse && NCheckEclipse(objP, objM, NULL) > etNone)
+      col = gi.kiOn;
+    // Only the first moon around a planet starting with 'X' gets capitalized.
+    chM = szObjDisp[objM][0];
+    if (FBetween(objP, oMar, oPlu) && FCapCh(chM)) {
+      if (rgf[objP - oMar][chM - 'A'])
+        chM += ('a' - 'A');
+      else
+        rgf[objP - oMar][chM - 'A'] = fTrue;
+    }
+    symbolM[objM] = ang;
+    rgcol[objM] = col;
+    rgch[objM] = chM;
+  }
+
+  // For each planet, ensure the moons around it don't overlap their letters.
+  for (i = 0; i < cHasMoons; i++) {
+    objP = rgobjHasMoons[i];
+    if (ignore[objP])
+      continue;
+    if (FCust(objP)) {
+      j = ObjOrbit(objP);
+      if (FHasMoon(j))
+        continue;
+    }
+    FillSymbolRingM(objP, symbolM,
+      (real)((6 - gi.nScale/gi.nScaleT) * gi.nScaleText / 2));
+  }
+  return fTrue;
 }
 
 
@@ -939,7 +1043,7 @@ void XChartEsoteric()
     day = 1; mon = 1; yea = Yea; monsiz = 31;
   } else
     daytot = DayInMonth(Mon, Yea);
-  x1 = (3 + Min(cYea, 2))*xFontT; y1 = 12*gi.nScaleTextT;
+  x1 = (3 + Min(cYea, 2))*xFontT; y1 = 6*gi.nScaleTextT2;
   x2 = gs.xWin - x1; y2 = gs.yWin - y1;
   xs = x2 - x1; ys = y2 - y1;
   dd = (daytot / ys + 1) * (2 - us.fSeconds);
@@ -956,8 +1060,7 @@ void XChartEsoteric()
     else
       sprintf(sz, "Average");
     DrawColor(i <= cRay ? kRayB[i] : gi.kiOn);
-    DrawSz(sz, x1 + xs*(i-1)/8, y1 - 3*gi.nScaleTextT,
-      dtLeft | dtBottom | dtScale2);
+    DrawSz(sz, x1 + xs*(i-1)/8, gi.nScaleTextT2, dtCent | dtTop | dtScale2);
   }
 
   // Loop and display Ray influences for one day segment.
@@ -1224,7 +1327,7 @@ void XChartTransit(flag fTrans, flag fProg)
             } else
               pw2 = *ppw;
             rT = (et < etPartial ? 50.0 : (et > etPartial ? 450.0 : 250.0)) +
-              rPct;
+              (et != etPenumbra2 ? rPct : 100.0);
             pw2[iw] = (int)(rT * 65535.0 / 600.0);
           }
         }
@@ -1233,8 +1336,8 @@ void XChartTransit(flag fTrans, flag fProg)
   }
 
   // Print chart header row.
-  yo = gi.nScaleTextT*12;
-  yp = gi.nScaleTextT*2;
+  yo = gi.nScaleTextT2*6;
+  yp = gi.nScaleTextT2;
 
   DrawColor(gi.kiOn);
   if (!fMonth)
@@ -1301,6 +1404,13 @@ void XChartTransit(flag fTrans, flag fProg)
           cRow--;
           continue;
         }
+        if (us.fIndian) {
+          for (iw = 0; iw < cTot; iw++)
+            if ((pw[iw]-1) * (yRow-1) / 65535 >= yRow-2)
+              break;
+          if (iw >= cTot)
+            continue;
+        }
         iy++;
         yp2 = yo + iy*yRow - yRow/2;
         yp = yp2 + yRow/2;
@@ -1322,7 +1432,7 @@ void XChartTransit(flag fTrans, flag fProg)
         DrawColor(kAspB[n]);
         if (fEclipse && n <= aOpp) {
           pw2 = (*rgEph)[y][x][n];
-          if (pw2 != NULL && pw2[iw] > 0)
+          if (pw2 != NULL)
             n += cAspect2;
         }
         DrawAspect(n, xp, yp2);
@@ -1335,9 +1445,9 @@ void XChartTransit(flag fTrans, flag fProg)
         }
         DrawObject(y, xp, yp2);
         DrawColor(gi.kiGray);
-        DrawLineX(0, xo + iw - 1, yp);
+        DrawLineX(0, xo + cTot - 1, yp);
         if (iy <= 1)
-          DrawLineX(0, xo + iw - 1, yp - yRow);
+          DrawLineX(0, xo + cTot - 1, yp - yRow);
 
         // Draw the graph itself for the aspect in question.
         nMax = -1;
@@ -1417,6 +1527,7 @@ void DrawPointDither(Bitmap *b, int x, int y, int k, int kmax)
 {
   int m, n;
   flag f;
+  KI ki;
 
   if (kmax <= 1) {
     f = (k > 0);
@@ -1427,9 +1538,10 @@ void DrawPointDither(Bitmap *b, int x, int y, int k, int kmax)
     m = x%3; n = y%3;
     f = (k > n*3 + m);
   }
-  if (b != NULL)
-    BmpSetXY(b, x, y, rgbbmp[f ? gi.kiOn : gi.kiOff]);
-  else if (f)
+  if (b != NULL) {
+    ki = f ? gi.kiOn : gi.kiOff;
+    BmpSetXY(b, x, y, KvFromKi(ki));
+  } else if (f)
     DrawPoint(x, y);
 }
 
@@ -1564,14 +1676,15 @@ flag XChartRising()
       xp = x; yp = y*dy;
 
       // Draw the current pixels within the graph.
-      // This chart doesn't really work as a PS, Metafile, or Wireframe.
+      // This chart doesn't really work in vector formats (e.g. PS).
       if (gi.fFile && gs.ft > ftBmp)
         continue;
       if (gs.fColor) {
         for (i = 0; i < dy; i++) {
           if (!gi.fFile) {
 #ifdef WINANY
-            BmpSetXY(&gi.bmpRising, xp, yp + i, !gi.fBmp ? rgbbmp[ki[n]] : n);
+            BmpSetXY(&gi.bmpRising, xp, yp + i,
+              !gi.fBmp ? KvFromKi(ki[n]) : n);
 #else
             DrawColor(ki[n]);
             DrawPoint(x1+1 + xp, y1+1 + yp + i);
@@ -1598,7 +1711,7 @@ flag XChartRising()
   }
 #ifdef WINANY
   if (!gi.fFile)
-    BmpCopyWin(&gi.bmpRising, wi.hdc, x1+1, y1+1);
+    BmpCopyToWin(&gi.bmpRising, wi.hdc, x1+1, y1+1);
 #endif
 
   // Label vertical (month) axis.
@@ -1632,8 +1745,8 @@ flag XChartRising()
       else
         sprintf(sz, "%d", i);
       DrawColor(gi.kiOn);
-      DrawSz(sz, x, y1 - 3*gi.nScaleTextT,
-        dtLeft | dtBottom | dtScale2);
+      DrawSz(sz, x, gi.nScaleTextT2,
+        dtLeft | dtTop | dtScale2);
       DrawSz(sz, x, y2 + 3*gi.nScaleTextT,
         dtLeft | dtTop | dtScale2);
     }

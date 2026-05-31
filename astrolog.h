@@ -1,8 +1,8 @@
 /*
-** Astrolog (Version 7.80) File: astrolog.h
+** Astrolog (Version 8.00) File: astrolog.h
 **
 ** IMPORTANT NOTICE: Astrolog and all chart display routines and anything
-** not enumerated below used in this program are Copyright (C) 1991-2025 by
+** not enumerated below used in this program are Copyright (C) 1991-2026 by
 ** Walter D. Pullen (Astara@msn.com, http://www.astrolog.org/astrolog.htm).
 ** Permission is granted to freely use, modify, and distribute these
 ** routines provided these credits and notices remain unmodified with any
@@ -48,7 +48,7 @@
 ** Initial programming 8/28-30/1991.
 ** X Window graphics initially programmed 10/23-29/1991.
 ** PostScript graphics initially programmed 11/29-30/1992.
-** Last code change made 6/19/2025.
+** Last code change made 5/28/2026.
 */
 
 /*
@@ -129,6 +129,9 @@
 #define META /* Comment out this #define if you don't want the ability to  */
              /* generate charts in the MS Windows metafile picture format. */
 
+#define SVG /* Comment out this #define if you don't want the ability to */
+            /* generate charts in the Scalable Vector Graphics format.   */
+
 #define WIRE /* Comment out this #define if you don't want the ability to */
              /* generate charts in the Daedalus wireframe vector format.  */
 
@@ -158,17 +161,14 @@
 ** specified within the default settings file or in the program itself.
 */
 
-#ifndef PC
-#define DEFAULT_DIR "~/astrolog"
-#else
-#define DEFAULT_DIR "C:\\Astrolog"
-#endif
+#define DEFAULT_DIR ""
   // Change this string to directory path program should look in for the
   // astrolog.as default file, if one is not in the executable directory, the
   // current directory, or in directories indicated by Astrolog environment
-  // variables. For PC systems, use two backslashes instead of one forward
-  // slash to divide subdirectories. For Unix systems, it may be necessary to
-  // expand "~" to the full path. Files will still be found even if not set!
+  // variables. For example, "~/astrolog" or "C:\\Astrolog". For PC systems,
+  // use two backslashes instead of one forward slash to divide subdirectories.
+  // For Unix systems, it may be necessary to expand "~" to the full path.
+  // Files will still be found in most cases even if this is not set!
 
 #define CHART_DIR DEFAULT_DIR
   // This string is the directory the program looks in for chart info files
@@ -199,7 +199,7 @@
 #define DEFAULT_SYSTEM 0
   // Normally, Placidus houses are used (unless the user specifies otherwise).
   // If you want a different default system, change this number to a value
-  // from 0-21 (values same as in -c switch).
+  // from 0-39 (values same as in -c switch).
 
 #define DEFAULT_ASPECTS 5
   // Default number of aspects to include in charts.
@@ -228,7 +228,7 @@
   // also have the current version appended to it before it is accessed.
 
 #define WHEELCOLS 15    // Affects width of each house in wheel display.
-#define WHEELROWS 11    // Max no. of objects that can be in a wheel house.
+#define WHEELROWS 12    // Max no. of objects that can be in a wheel house.
 #define SCREENWIDTH 80  // Number of columns to print interpretations in.
 #define MONTHSPACE 3    // Number of spaces between each calendar column.
 #define MAXINDAY 300    // Max number of aspects or transits displayable.
@@ -263,8 +263,9 @@
 #define DEFAULTY    600
 #define SIDESIZE    160  // Size of wheel chart information sidebar.
 #define MAXMETA 8000000  // Max bytes allowed in a metafile.
-#define METAMUL      12  // Metafile coordinate to chart pixel ratio.
 #define PSMUL        11  // PostScript coordinate to chart pixel ratio.
+#define METAMUL      12  // Metafile coordinate to chart pixel ratio.
+#define SVGMUL        8  // SVG coordinate to chart pixel ratio.
 #define WIREMUL      10  // Wireframe coordinate to chart pixel ratio.
 #define CELLSIZE     14  // Size for each cell in the aspect grid.
 #define DEFORB      7.0  // Min distance glyphs can be from each other.
@@ -369,6 +370,9 @@
 #ifdef META
 #define VECTOR
 #endif
+#ifdef SVG
+#define VECTOR
+#endif
 #ifdef WIRE
 #define VECTOR
 #endif
@@ -458,6 +462,12 @@
 #endif
 #endif // META
 
+#ifdef SVG
+#ifndef GRAPH
+#error "If 'SVG' is defined 'GRAPH' must be too"
+#endif
+#endif // SVG
+
 #ifdef WIRE
 #ifndef GRAPH
 #error "If 'WIRE' is defined 'GRAPH' must be too"
@@ -481,9 +491,9 @@
 #define fTrue  TRUE
 
 #define szAppNameCore "Astrolog"
-#define szVersionCore "7.80"
-#define szVerCore     "780"
-#define szDateCore    "June 2025"
+#define szVersionCore "8.00"
+#define szVerCore     "800"
+#define szDateCore    "May 2026"
 #define szAddressCore \
   "Astara@msn.com - http://www.astrolog.org/astrolog.htm"
 #define szNowCore     "now"
@@ -570,11 +580,14 @@
 #define cPart     177
 #define cWeek     7
 #define cColor    16
+#define cColor2   26
 #define cRainbow  7
 #define cRay      7
 #define cRing     6
 #define cHasMoons 11
 #define cNakshat  27
+#define cMacro    96
+#define cMSub     8
 
 // Font size constants
 
@@ -596,7 +609,7 @@
 #define icnUS    234  // United States
 #define icnCA    38   // Canada
 #define icnFR    76   // France
-#define iznMax   425
+#define iznMax   429
 #define ilistMax 200
 
 // Object array index values
@@ -730,8 +743,8 @@ enum _objects {
   oPlC = (cobLo + 4),     // Pluto COB
   oOri = (starLo-1 + 28), // Alnilam (Orion)
   oAlr = (starLo-1 + 30), // Alnair
-  oPle = (starLo-1 + 45), // Alcyone (Pleiades)
-  oAnd = (starLo-1 + 46), // Andromeda (M31)
+  oPle = (starLo-1 + 46), // Alcyone (Pleiades)
+  oAnd = (starLo-1 + 47), // Andromeda (M31)
   oGal = (starLo-1 + 49), // Galactic Center (Milky Way)
   cObj = 133,
 };
@@ -830,7 +843,7 @@ enum _housemodel {
   hmPrime    = 1,   // 3D: Equator of houses is prime vertical
   hmHorizon  = 2,   // 3D: Equator of houses is local horizon
   hmEquator  = 3,   // 3D: Equator of houses is celestial equator
-  cMethod = 3,
+  hmMax      = 4,
 };
 
 // Progressed chart types
@@ -901,7 +914,10 @@ enum _angles {
   arMC  = 1,  // Midheaven
   arDes = 2,  // Descendant
   arIC  = 3,  // Nadir
-  arMax = 4,
+  arVer = 4,  // Vertex
+  arAnt = 5,  // Antivertex
+  arMax = 6,
+  arDir = 4,
 };
 
 // Eclipse types
@@ -1015,11 +1031,21 @@ enum _colors {
   kMagenta = 13,  // Magenta
   kCyan    = 14,  // Cyan
   kWhite   = 15,  // White
-  kElement = 16,  // Color of element
-  kRay     = 17,  // Color of Ray
-  kStar    = 18,  // Color of star's brightness
-  kPlanet  = 19,  // Color of planet orbited
-  kNull    = 16,  // Invalid color
+  kDkGray2 = 16,  // Extra color: Dark Gray
+  kOrange2 = 17,  // Extra color: Orange
+  kPink    = 18,  // Extra color: Pink
+  kBrown   = 19,  // Extra color: Brown
+  kIndigo  = 20,  // Ray color: Indigo
+  kForest  = 21,  // Ray color: Forest
+  kAmber   = 22,  // Ray color: Amber
+  kRose    = 23,  // Ray color: Rose
+  kSky     = 24,  // Ray color: Sky
+  kViolet  = 25,  // Ray color: Violet
+  kElement = 26,  // Color of element
+  kRay     = 27,  // Color of Ray
+  kStar    = 28,  // Color of star's brightness
+  kPlanet  = 29,  // Color of planet orbited
+  kMax     = 30,  // Maximum number of colors
 };
 
 // Arabic parts
@@ -1095,7 +1121,8 @@ enum _filetype {
   ftBmp  = 1,  // Windows bitmap file (.bmp)
   ftPS   = 2,  // PostScript file (.ps)
   ftWmf  = 3,  // Windows metafile file (.wmf)
-  ftWire = 4,  // Daedalus wireframe file (.dw)
+  ftSVG  = 4,  // Scalable Vector Graphics file (.svg)
+  ftWire = 5,  // Daedalus wireframe file (.dw)
 };
 
 // File codepage
@@ -1110,25 +1137,26 @@ enum _charactercodepage {
 // Font index
 
 enum _fontindex {
-  fiAstrolog = 0,  // Astrolog's internal vector drawn characters
-  fiWingding = 1,  // Windows Wingdings font
-  fiAstro    = 2,  // Astro astrology font
-  fiEnigma   = 3,  // EnigmaAstrology astrology font
-  fiHamburg  = 4,  // HamburgSymbols astrology font
-  fiAstronom = 5,  // Astronomicon astrology font
-  fiCourier  = 6,  // Courier (New) text font
-  fiConsolas = 7,  // Consolas text font
-  fiArial    = 8,  // Arial text font
-  fiNakshatr = 9,  // HanksNakshatra font
-  cFont = 10,
+  fiAstrolog = 0,   // Astrolog's internal vector drawn characters
+  fiWingding = 1,   // Windows Wingdings font
+  fiAstro    = 2,   // Astro astrology font
+  fiEnigma   = 3,   // EnigmaAstrology astrology font
+  fiHamburg  = 4,   // HamburgSymbols astrology font
+  fiAstronom = 5,   // Astronomicon astrology font
+  fiStarSan  = 6,   // StarFont (sans serif) astrology font
+  fiStarSer  = 7,   // StarFont (serif) astrology font
+  fiNakshatr = 8,   // HanksNakshatra font
+  fiArial    = 9,   // Arial text font
+  fiCourier  = 10,  // Courier (New) text font
+  fiConsolas = 11,  // Consolas text font
+  fiLucida   = 12,  // Lucida Console text font
+  fiCascadia = 13,  // Cascadia Mono text font
+  cFont = 14,
 };
 
 // Letters
 
 enum _letter {
-  iLetterQ = 17,
-  iLetterR = 18,
-  iLetterS = 19,
   iLetterT = 20,
   iLetterU = 21,
   iLetterV = 22,
@@ -1156,9 +1184,9 @@ enum _terminationcode {
 */
 
 #define BLo(w) ((byte)(w))
-#define BHi(w) ((byte)((word)(w) >> 8 & 0xFF))
+#define BHi(w) ((byte)((word)(w) >> 8 & 0xff))
 #define WLo(l) ((word)(dword)(l))
-#define WHi(l) ((word)((dword)(l) >> 16 & 0xFFFF))
+#define WHi(l) ((word)((dword)(l) >> 16 & 0xffff))
 #define WFromBB(bLo, bHi) ((word)BLo(bLo) | (word)((byte)(bHi)) << 8)
 #define LFromWW(wLo, wHi) ((dword)WLo(wLo) | (dword)((word)(wHi)) << 16)
 #define LFromBB(b1, b2, b3, b4) LFromWW(WFromBB(b1, b2), WFromBB(b3, b4))
@@ -1166,7 +1194,7 @@ enum _terminationcode {
   (((dword)(bR)) | ((dword)(bG)<<8) | ((dword)(bB)<<16))
 #define RgbR(l) BLo(l)
 #define RgbG(l) BHi(l)
-#define RgbB(l) ((byte)((dword)(l) >> 16 & 0xFF))
+#define RgbB(l) ((byte)((dword)(l) >> 16 & 0xff))
 #define ChHex(n) (char)((n) < 10 ? '0' + (n) : 'a' + (n) - 10)
 
 #define Max(v1, v2) ((v1) > (v2) ? (v1) : (v2))
@@ -1184,7 +1212,6 @@ enum _terminationcode {
 #define FUncapCh(ch) FBetween(ch, 'a', 'z')
 #define FNumCh(ch) FBetween(ch, '0', '9')
 #define NHex(ch) ((int)((ch) <= '9' ? (ch) - '0' : (ch) - 'a' + 10) & 15)
-#define NHex2(ch) ((int)((ch) <= '9' ? (ch) - '0' : (ch) - 'A' + 10) & 15)
 #define FSzSet(sz) ((sz) != NULL && *(sz) != chNull)
 #define SzSet(sz) ((sz) != NULL ? (sz) : "")
 #define NMultDiv(n1, n2, n3) ((int)((long)(n1) * (n2) / (n3)))
@@ -1238,7 +1265,7 @@ enum _terminationcode {
 #define FStar(obj)    FBetween(obj, starLo, starHi)
 #define FObject(obj)  ((obj) <= cPlanet || (obj) >= uranLo)
 #define FThing(obj)   ((obj) <= cThing || (obj) >= uranLo)
-#define FThing2(obj)  (FThing(obj) || (obj) == oFor)
+#define FThing2(obj)  (FThing(obj) || (obj) == oFor || (obj) == oVtx)
 #define FHelio(obj)   (FNorm(obj) && FObject(obj) && !FGeo(obj))
 #define FNodal(obj)   FBetween(obj, oNod, oLil)
 #define FGeo(obj)     ((obj) == oMoo || FNodal(obj))
@@ -1269,7 +1296,7 @@ enum _terminationcode {
 #define FValidSign(n) FBetween(n, 1, cSign)
 #define FValidAspect(asp) FBetween(asp, 0, cAspect)
 #define FValidSystem(n) FBetween(n, 0, cSystem-1)
-#define FValidMethod(n) FBetween(n, 0, cMethod)
+#define FValidMethod(n) FBetween(n, 0, hmMax-1)
 #define FValidDivision(n) FBetween(n, 1, 2880)
 #define FValidOffset(r) FBetween(r, -rDegMax, rDegMax)
 #define FValidCenter(obj) (FBetween(obj, oEar, cObj) && FThing(obj))
@@ -1284,9 +1311,14 @@ enum _terminationcode {
 #define FValidBioday(n) FBetween(n, 1, 199)
 #define FValidScreen(n) FBetween(n, 20, 200)
 #define FValidMacro(n) ((n) >= 0)
+#define FValidMacro2(n) FBetween(n, 1, cMacro)
 #define FValidList(n) FBetween(n, 0, is.cci-1)
+#define FValidProgArc(obj) (FBetween(obj, -1, cObj) && FObject(obj))
 #define FValidGlyphs(n) FBetween(n, 0, 223222)
-#define FValidDecaType(n) FBetween(n, 0, 5)
+#define FValidFont(n, i) (FBetween(i, 0, cFont-1) && \
+  rgszFontAllow[n][i] >= '0')
+#define FValidDecaFill(n) FBetween(n, 0, 7)
+#define FValidDecaType(n) FBetween(n, 0, 6)
 #define FValidDecaSize(n) FBetween(n, 0, 100)
 #define FValidDecaLine(n) FBetween(n, 1, 1000)
 #define FValidGrid(n) FBetween(n, 0, cObj)
@@ -1301,14 +1333,21 @@ enum _terminationcode {
 #define FValidGraphY(y) (FBetween(y, BITMAPY1, BITMAPY) || (y) == 0)
 #define FValidRotation(n) FBetween(n, 0, rDegMax-rSmall)
 #define FValidTilt(n) FBetween(n, -rDegQuad, rDegQuad)
-#define FValidColor(n) FBetween(n, 0, cColor-1)
-#define FValidColor2(n) FBetween(n, 0, cColor-1 + 2)
+#define FValidColor(n) FBetween(n, 0, cColor2-1)
+#define FValidColor2(n) FBetween(n, 0, cColor2-1 + 2)
 #define FValidColorS(n) (FValidColor(n) || (n) == kStar)
 #define FValidColorM(n) (FValidColor(n) || (n) == kPlanet)
-#define FValidBmpmode(ch) \
-  ((ch) == 'N' || (ch) == 'C' || (ch) == 'V' || (ch) == 'A' || (ch) == 'B')
-#define FValidTimer(n) FBetween(n, 1, 32000)
+#define FValidColorA(n) (FValidColor(n) || FBetween(n, -0xffffff, -1))
+#define FValidColor2A(n) (FValidColor2(n) || FBetween(n, -0xffffff, -1))
+#define FValidColorSA(n) (FValidColorS(n) || FBetween(n, -0xffffff, -1))
+#define FValidColorMA(n) (FValidColorM(n) || FBetween(n, -0xffffff, -1))
+#define FValidBmpmode(ch) ((ch) == 'N' || (ch) == 'C' || (ch) == 'V' || \
+  (ch) == 'A' || (ch) == 'B' || (ch) == 'P')
+#define FValidAntialias(n) FBetween(n, 1, 12)
 #define FValidTelescope(obj) (FItem(obj) || (obj) == -1)
+#define FValidCustom(i, typ) ((typ) == 2 ? FValidObj(i) : \
+  ((typ) >= 5 ? FValidPart(i) : (i) >= 1 || (typ) == 4))
+#define FValidTimer(n) FBetween(n, 1, 32000)
 
 #define DM(d, m) ((d) + (m)/60.0)
 #define DMS(d, m, s) (DM(d, m) + (s)/3600.0)
@@ -1321,6 +1360,7 @@ enum _terminationcode {
 #define kSignB(s) kObjB[cuspLo-1+(s)]
 #define kModeA(m) kElemA[(m) <= 1 ? (m) : eWat]
 #define kModeB(m) kElemB[(m) <= 1 ? (m) : eWat]
+#define KvFromKi(ki) ((ki) >= 0 ? rgbbmp[ki] : -(ki))
 #define FInterpretObj(obj) (szMindPart[obj][0] != chNull)
 #define FInterpretAsp(asp) ((asp) > 0 && szInteract[asp][0])
 #define szPerson  (FSzSet(ciMain.nam) ? ciMain.nam : "This person")
@@ -1397,9 +1437,9 @@ enum _terminationcode {
 #define PY(A) RSinD(A)
 #define PZ(A) PlaceInX(A)
 
-// Compute Mollewide projection in pixel scale given latitude.
-#define RMollewide(y) RSqr((real)Sq(180*nScl) - 4.0*Sq((y)*(real)nScl))
-#define NMollewide(y) \
+// Compute Mollweide projection in pixel scale given latitude.
+#define RMollweide(y) RSqr((real)Sq(180*nScl) - 4.0*Sq((y)*(real)nScl))
+#define NMollweide(y) \
   ((int)(RSqr((real)(Sq(180*nScl) - 4*Sq((y)*nScl))) + rRound))
 
 // Do settings indicate the current chart should have the info sidebar?
@@ -1409,7 +1449,7 @@ enum _terminationcode {
 
 // Is the current chart most properly displayed as a square graphic?
 #define fSquare \
-  (gi.nMode == gWheel || gi.nMode == gHouse || gi.nMode == gGrid || \
+  (gi.nMode == gWheel || gi.nMode == gHouse || \
   gi.nMode == gMidpoint || (gi.nMode == gHorizon && us.fPrimeVert) || \
   gi.nMode == gDisposit || gi.nMode == gOrbit || gi.nMode == gSector || \
   gi.nMode == gMoons || \
@@ -1421,9 +1461,9 @@ enum _terminationcode {
 
 // Do settings indicate the current chart should have an outer border?
 #define fDrawBorder \
-  ((gs.fBorder || gi.nMode == gGrid) && gi.nMode != gTraTraGra && \
+  (gs.fBorder && gi.nMode != gGrid && gi.nMode != gTraTraGra && \
   gi.nMode != gTraNatGra && gi.nMode != gGlobe && gi.nMode != gPolar && \
-  (gi.nMode != gWorldMap || !gs.fMollewide))
+  gi.nMode != gWorldMap)
 
 // Do settings indicate current chart should have chart info at its bottom?
 #define fDrawText \
@@ -1729,16 +1769,18 @@ typedef struct _UserSettings {
   flag fGraphics;    // -X
 
   // Main subflags
-  flag fNoSwitches;
   flag fLoopInit;    // -Q0
+  flag fSabian;      // -I0
   flag fSeconds;     // -b0
   flag fSecond1K;    // -b1
+  flag fSecondHide;  // -b2
   flag fPlacalcAst;  // -ba
   flag fPlacalcPla;  // -bp
   flag fMatrixPla;   // -bm
   flag fMatrixStar;  // -bU
   flag fEquator;     // -sr
   flag fEquator2;    // -sr0
+  flag fProgRAMC;    // -pc
   flag fAnsiChar;    // -k0
   flag fTextHTML;    // -kh
   flag fSolarWhole;  // -10
@@ -1806,6 +1848,7 @@ typedef struct _UserSettings {
   real  rHarmonic;     // Harmonic chart value passed to -x switch.
   int   objOnAsc;      // Planet value passed to -1 or -2 switch.
   int   objRequire;    // Required object passed to -RO switch.
+  int   objProgArc;    // -pO
   int   nDegForm;      // -s
   int   nProgress;     // -p0
   int   nDivision;     // -d
@@ -1831,8 +1874,7 @@ typedef struct _UserSettings {
   real  rZodiacOffsetAll;  // Position shifting value passed to -Ys switch.
   real  rProgDay;          // Progression day value passed to -pd switch.
   real  rProgCusp;         // Progression cusp ratio value passed to -pC.
-  int   nRatio1;           // Chart ratio factors passed to -rc or -rm.
-  int   nRatio2;
+  real  rRatio;            // Chart proportion factor passed to -rc or -rm.
   int   nCharset;          // -Ya
   int   nCharsetOut;       // -Yao
   int   nScrollRow;        // -YQ
@@ -1880,8 +1922,10 @@ typedef struct _UserSettings {
   char *szExpFontObj;  // -~FO
   char *szExpFontAsp;  // -~FA
   char *szExpFontNak;  // -~FN
+  char *szExpFontTxt;  // -~FT
   char *szExpSort;     // -~v
   char *szExpDecan;    // -~v3
+  char *szExpDecan2;   // -~v30
   char *szExpDegree;   // -~sd
   char *szExpStar;     // -~U
   char *szExpAst;      // -~U0
@@ -1890,6 +1934,7 @@ typedef struct _UserSettings {
   char *szExpIntV2;    // -~IV
   char *szExpIntA;     // -~Ia
   char *szExpIntA2;    // -~IA
+  char *szExpCorner;   // -~Xv
   char *szExpCity;     // -~XL
   char *szExpSidebar;  // -~Xt
   char *szExpKey;      // -~XQ
@@ -1906,8 +1951,10 @@ typedef struct _UserSettings {
 } US;
 
 typedef struct _InternalSettings {
+  flag fNoSwitches;    // Do we need to prompt user to enter a command line?
   flag fHaveInfo;      // Do we need to prompt user for chart info?
   flag fDst;           // Has Daylight Saving Time been autodetected?
+  flag fZoneMeridian;  // Has a meridian based timezone been specified?
   flag fProgress;      // Are we doing a chart involving progression?
   flag fReturn;        // Are we doing a transit chart for returns?
   flag fMult;          // Have we already printed at least one text chart?
@@ -1926,6 +1973,7 @@ typedef struct _InternalSettings {
   int cchCol;          // The current column text charts are printing at.
   int cchColMax;       // Max column current text chart has printed at.
   int nHTML;           // HTML text output context mode for -kh.
+  int ichLocSplit;     // Character index between generated long and lat.
   int nHouseSystem;    // Actual house system used to compute cusps for -c.
   int nWheelRows;      // Actual number of rows per house to use for -w.
   int cae;             // Number of atlas entries of city locations loaded.
@@ -1988,7 +2036,7 @@ typedef struct _GraphicsSettings {
   flag fRoot;        // Are we drawing on the X11 background (-XB set).
   flag fText;        // Are we printing chart info on chart (-Xt set).
   flag fDoSidebar;   // Are we drawing wheel chart sidebar (-Xv0 set).
-  int nFontAll;      // Which fonts to use for sign/house/obj/asp (-YXf).
+  int nFontAll;      // Which fonts to use for sign/house/obj/etc (-YXf).
   int nFontTxt;      // Which font to use for graphics text       (-YXft).
   int nFontSig;      // Which font to use for signs of the zodiac (-YXfs).
   int nFontHou;      // Which font to use for labelling houses    (-YXfh).
@@ -2003,7 +2051,7 @@ typedef struct _GraphicsSettings {
   flag fJetTrail;    // Are we not clearing screen on updates (-Xj set).
   flag fConstel;     // Are we drawing maps as constellations (-XF set).
   flag fSouth;       // Are we focus on south hemisphere (-XX0/XP0 set).
-  flag fMollewide;   // Are we drawing maps scaled correctly (-XW0 set).
+  flag fMollweide;   // Are we drawing maps scaled correctly (-XW0 set).
   flag fEquator;     // Are we showing equator on maps/globes (-Xe set).
   flag fEcliptic;    // Are we drawing oriented to ecliptic (-YXe set).
   flag fAllStar;     // Are we drawing all sefstars.txt stars (-XU set).
@@ -2011,11 +2059,13 @@ typedef struct _GraphicsSettings {
   flag fHouseExtra;  // Are we showing additional house info (-XC set).
   flag fPrintMap;    // Are we printing globe names on draw (-XPv set).
   flag fKeepSquare;  // Are we preserving chart aspect ratio (-XQ set).
+  flag fAutoScale;   // Are we auto-sizing the glyph scale (-XQ0 set).
   flag fAnimMap;     // Are we animating map instead of time (-XN set).
   flag fThick;       // Are we drawing thicker lines in charts (-Xx set).
   flag fAntialias;   // Are we drawing lines antialiased (-Xx0 set).
   flag fIndianWheel; // Are wheel charts North/South Indian (-XJ set).
   flag fMoonWheel;   // Are moons drawn around planets in wheels (-X8 set).
+  flag fBackDraw;    // Are we drawing a background bitmap (-XI set).
   int xWin;          // Current hor. size of graphic chart (-Xw).
   int yWin;          // Current ver. size of graphic chart (-Xw).
   int nAnim;         // Current animation mode jump rate (-Xn).
@@ -2033,15 +2083,16 @@ typedef struct _GraphicsSettings {
   char chBmpMode;    // Current bitmap file type (-Xb).
   real rBackPct;     // Background image transparency percentage (-XI).
   int nBackOrient;   // Background image wallpaper orientation (-XI).
-  int nOrient;       // PostScript paper orientation indicator.
-  real xInch;        // PostScript horizontal paper size inches.
-  real yInch;        // PostScript vertical paper size inches.
+  int nOrient;       // PostScript paper orientation indicator (-YXp).
+  real xInch;        // PostScript horizontal paper size inches (-YXp0).
+  real yInch;        // PostScript vertical paper size inches (-YXp0).
   char *szDisplay;   // Current X11 display name (-Xd).
   int nDecaType;     // Type of wheel chart decoration (-YXv).
   int nDecaSize;     // Size of wheel chart decoration (-YXv).
   int nDecaLine;     // Lines in wheel chart decoration (-YXv).
   int nDecaFill;     // Fill method for wheel chart sections (-Xv).
-  char *szSidebar;   // Extra text to append to bottom of sidebar (-YXt)
+  int kiDeca;        // Color for wheel chart decoration (-Ykv).
+  char *szSidebar;   // Extra text to append to bottom of sidebar (-YXt).
   int nGridCell;     // Number of cells in -g grids (-YXg).
   real rspace;       // Radius in AU of -S orbit chart (-YXS).
   int cspace;        // Number of -S orbit trails allowed (-YXj).
@@ -2057,6 +2108,7 @@ typedef struct _GraphicsSettings {
   flag fColorHouse;  // More color for house boundaries. (-YXk0).
   flag fAltPalette;  // Use alternate palette for white backgrounds (-YXK0).
   int nDashMax;      // Maximum dash allowed for lines (-YXA).
+  int nThickAdjust;  // Pixel thickness to increase all lines by (-YXx).
   int nTriangles;    // Triangles/cubes grid to draw on maps, if any (-YXW).
   char *szStarsLin;  // Names of extra stars for linking (-YXU).
   char *szStarsLnk;  // Indexes of star pairs to link up (-YXU).
@@ -2065,7 +2117,8 @@ typedef struct _GraphicsSettings {
 typedef struct _GraphicsInternal {
   int nMode;          // Current type of chart to create.
   flag fMono;         // Is this a monochrome display.
-  int kiCur;          // Current color drawing with.
+  KI kiCur;           // Current color palette index drawing with.
+  KV kvCur;           // Current color RGB value drawing with.
   pbyte bm;           // Pointer to allocated memory.
   int cbBmpRow;       // Horizontal size of bitmap array in memory.
   char *szFileOut;    // Current name of bitmap file (-Xo).
@@ -2123,12 +2176,11 @@ typedef struct _GraphicsInternal {
   int depth;          // Number of active color bits.
 #endif
 #ifdef PS             // Variables used by the PostScript generator.
-  flag fEps;          // Are we doing Encapsulated PostScript.
   int cStroke;        // Number of items drawn without flushing.
   flag fLineCap;      // Are line ends rounded instead of square.
   int nDash;          // How much long are dashes in lines drawn.
   int nFontPS;        // What system font are we drawing text in.
-  real rLineWid;      // How wide are lines, et al, drawn with.
+  int nLineWid;       // How wide are lines, et al, drawn with.
 #endif
 #ifdef META           // Variables used by the metafile generator.
   word *pwMetaCur;    // Current mem position when making metafile.
@@ -2145,6 +2197,10 @@ typedef struct _GraphicsInternal {
   KI kiTextDes;
   int nAlignAct;      // Desired/actual text alignment.
   int nAlignDes;
+#endif
+#ifdef SVG
+  KV kiSvgAct;        // Desired and actual color.
+  KV kiSvgDes;
 #endif
 #ifdef WIRE           // Variables used by the wireframe generator.
   word *pwWireCur;    // Current memory position when doing wireframe.
@@ -2203,6 +2259,7 @@ typedef struct _WindowInternal {
   HWND hwndMain;     // The outer created frame window.
   HWND hwnd;         // The current window being dealt with.
   HMENU hmenu;       // The Astrolog main menu bar.
+  HMENU hmenuEdit;   // The Astrolog Edit menu.
   HACCEL haccel;     // Keyboard accelerator or shortcut table.
   HDC hdc;           // The current DC bring drawn upon.
   HDC hdcPrint;      // The current DC being printed upon.
@@ -2224,6 +2281,7 @@ typedef struct _WindowInternal {
   int yChar;
   int xMouse;        // Horizontal & vertical mouse position.
   int yMouse;
+  int nScaleWin;     // Pixel scale used when printing or antialiasing.
   WORD wCmd;         // The currently invoked menu command.
   LPARAM lParamRC;   // Coordinates where right click originated.
   int nMode;         // New chart type to switch to if any.
@@ -2233,6 +2291,7 @@ typedef struct _WindowInternal {
   flag fNotManual;   // Is window being resized automatically?
   flag fRedraw;      // Do we need to redraw the screen?
   flag fCast;        // Do we need to recast the chart positions?
+  flag fSmoothZoom;  // Are we antialiasing from a larger bitmap?
   flag fAbort;       // Did the user cancel printing in progress?
   flag fMoved;       // Has mouse been dragged since down click?
   flag fSkipSystem;  // If should suppress the next system command.
@@ -2242,6 +2301,9 @@ typedef struct _WindowInternal {
   flag fSaverExt;    // Is executable .scr screen saver extension?
   flag fSaverCfg;    // Is screen saver in configuration mode?
   Bitmap bmpWin;     // Bitmap storing contents to be copied to window.
+  Bitmap bmpSmooth;  // Bitmap used when zooming down for antialiasing.
+  char rgfM[cMacro]; // Whether macro menu command text has been customized.
+  char rgfME[cMSub]; // Whether macro submenu name text has been customized.
 
   // Window user settings.
   flag fBuffer;        // Are we drawing updates off screen?
@@ -2252,11 +2314,13 @@ typedef struct _WindowInternal {
   flag fNoPopup;       // Do we not display warning messages?
   flag fStarLine;      // Do we display all constellation lines?
   flag fSaverRun;      // Do we run Astrolog as a screen saver?
+  flag fBmpWindow;     // Do we create bitmaps from Windows screen?
   flag fAutoSave;      // Are we saving chart after win draw?
   flag fAutoSaveNum;   // Autosave charts are incremental files?
   flag fAutoSaveWire;  // Autosave wireframe instead of bitmap?
+  int nAntialias;      // Zoom scale to use when antialiasing.
   int nAutoSaveNum;    // Number of incremental bitmap save.
-  UINT nTimerDelay;    // Milliseconds between animation draws.
+  int nTimerDelay;     // Milliseconds between animation draws.
 } WI;
 #endif
 
@@ -2274,6 +2338,7 @@ typedef struct _WindowInternal {
   HBITMAP hbmpPrev;  // Bitmap to restore after using background.
   short xClient;     // Horizontal & vertical window size.
   short yClient;
+  int nScaleWin;     // Pixel scale used when printing or antialiasing.
   flag fNotManual;   // Is window being resized automatically?
   flag fDoRedraw;
   flag fDoResize;

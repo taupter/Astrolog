@@ -1,8 +1,8 @@
 /*
-** Astrolog (Version 7.80) File: charts2.cpp
+** Astrolog (Version 8.00) File: charts2.cpp
 **
 ** IMPORTANT NOTICE: Astrolog and all chart display routines and anything
-** not enumerated below used in this program are Copyright (C) 1991-2025 by
+** not enumerated below used in this program are Copyright (C) 1991-2026 by
 ** Walter D. Pullen (Astara@msn.com, http://www.astrolog.org/astrolog.htm).
 ** Permission is granted to freely use, modify, and distribute these
 ** routines provided these credits and notices remain unmodified with any
@@ -48,7 +48,7 @@
 ** Initial programming 8/28-30/1991.
 ** X Window graphics initially programmed 10/23-29/1991.
 ** PostScript graphics initially programmed 11/29-30/1992.
-** Last code change made 6/19/2025.
+** Last code change made 5/28/2026.
 */
 
 #include "astrolog.h"
@@ -365,12 +365,12 @@ void ChartMidpointRelation(void)
     if (us.objRequire >= 0 && ilo != us.objRequire && jlo != us.objRequire)
       continue;
     if (!us.fHouse3D) {
-      mid = Midpoint(cp1.obj[ilo], cp2.obj[jlo]);
-      midalt = (cp1.alt[ilo] + cp2.alt[jlo]) / 2.0;
+      mid = Midpoint2(cp1.obj[ilo], cp2.obj[jlo], us.rRatio);
+      midalt = Ratio(cp1.alt[ilo], cp2.alt[jlo], us.rRatio);
       dist = MinDistance(cp1.obj[ilo], cp2.obj[jlo]);
     } else {
-      SphRatio(cp1.obj[ilo], cp1.alt[ilo], cp2.obj[jlo], cp2.alt[jlo], 0.5,
-        &mid, &midalt);
+      SphRatio(cp1.obj[ilo], cp1.alt[ilo], cp2.obj[jlo], cp2.alt[jlo],
+        us.rRatio, &mid, &midalt);
       dist = SphDistance(cp1.obj[ilo], cp1.alt[ilo],
         cp2.obj[jlo], cp2.alt[jlo]);
     }
@@ -435,10 +435,13 @@ void CastRelation(void)
 {
   byte ignoreSav[objMax];
   int i, j, cChart;
-  real ratio, t1, t2, t, rSav;
+  real t1, t2, t, rSav, rRatio;
   flag fSav;
+#ifdef SWISS
+  real rT, rLon, rLat;
+#endif
 
-  // Cast the six charts.
+  // Cast up to six charts.
 
   fSav = us.fProgress;
   cChart = 2 - (FBetween(us.nRel, rcHexaWheel, rcTriWheel) ? us.nRel+1 : 0);
@@ -485,7 +488,6 @@ void CastRelation(void)
   // For the standard -r synastry chart, use the house cusps of chart1
   // and the planet positions of chart2.
 
-  ratio = (real)us.nRatio1 / ((real)(us.nRatio1 + us.nRatio2));
   if (us.nRel <= rcSynastry) {
     for (i = 1; i <= cSign; i++)
       chouse[i] = cp1.cusp[i];
@@ -493,18 +495,25 @@ void CastRelation(void)
   // For the -rc composite chart, take the midpoints of the planets/houses.
 
   } else if (us.nRel == rcComposite) {
+    rRatio = us.rRatio;
+    if (!FBetween(rRatio, 0.0, 1.0))
+      rRatio = 0.5;
     j = Max(is.nObj, cuspHi);
     for (i = 0; i <= j; i++) {
-      planet[i] = Ratio(cp1.obj[i], cp2.obj[i], ratio);
-      if (RAbs(cp2.obj[i] - cp1.obj[i]) > rDegHalf)
-        planet[i] = Mod(planet[i] + rDegMax*ratio);
-      planetalt[i] = Ratio(cp1.alt[i], cp2.alt[i], ratio);
-      ret[i] = Ratio(cp1.dir[i], cp2.dir[i], ratio);
+      if (!us.fHouse3D) {
+        planet[i] = Midpoint2(cp1.obj[i], cp2.obj[i], rRatio);
+        planetalt[i] = Ratio(cp1.alt[i], cp2.alt[i], rRatio);
+      } else
+        SphRatio(cp1.obj[i], cp1.alt[i], cp2.obj[i], cp2.alt[i], rRatio,
+          &planet[i], &planetalt[i]);
+      ret[i] = Ratio(cp1.dir[i], cp2.dir[i], rRatio);
+      retalt[i] = Ratio(cp1.diralt[i], cp2.diralt[i], rRatio);
+      retlen[i] = Ratio(cp1.dirlen[i], cp2.dirlen[i], rRatio);
     }
     for (i = 1; i <= cSign; i++) {
-      chouse[i] = Ratio(cp1.cusp[i], cp2.cusp[i], ratio);
+      chouse[i] = Ratio(cp1.cusp[i], cp2.cusp[i], rRatio);
       if (RAbs(cp2.cusp[i] - cp1.cusp[i]) > rDegHalf)
-        chouse[i] = Mod(chouse[i] + rDegMax*ratio);
+        chouse[i] = Mod(chouse[i] + rDegMax*rRatio);
     }
 
     // Make sure don't have any 180 degree errors in house cusp complement
@@ -518,14 +527,31 @@ void CastRelation(void)
       if (RAbs(MinDistance(chouse[i], planet[oAsc - 1 + i])) > rDegQuad)
         planet[oAsc - 1 + i] = Mod(planet[oAsc - 1 + i]+rDegHalf);
 
+#ifdef SWISS
+    // May want to recalculate cusps based on the new position of the MC.
+    if (us.fProgRAMC) {
+      t = Ratio(t1, t2, us.rRatio);
+      fSav = us.fGeodetic; us.fGeodetic = fTrue;
+      rLon = Tropical(planet[oMC]); rLat = 0.0;
+      EclToEqu(&rLon, &rLat);
+      rLon = Untropical(rLon);
+      rLat = Ratio(ciMain.lat, ciTwin.lat, rRatio);
+      SwissHouse(t, rDegMax - rLon, rLat, us.nHouseSystem,
+        &rT, &rT, &rT, &rT, &rT, &rT, &rT, &rT);
+      us.fGeodetic = fSav;
+      for (i = 1; i <= cSign; i++)
+        planet[cuspLo-1 + i] = chouse[i];
+    }
+#endif
+
   // For the -rm time space midpoint chart, calculate the midpoint time and
   // place between the two charts and then recast for the new chart info.
 
   } else if (us.nRel == rcMidpoint) {
-    is.T = Ratio(t1, t2, ratio);
+    is.T = Ratio(t1, t2, us.rRatio);
     t = (is.T*36525.0)+rRound; is.JD = RFloor(t)+2415020.0;
     TT = RFract(t)*24.0;
-    ZZ = Ratio(GetOffsetCI(&ciMain), GetOffsetCI(&ciTwin), ratio);
+    ZZ = Ratio(GetOffsetCI(&ciMain), GetOffsetCI(&ciTwin), us.rRatio);
     TT -= ZZ;
     if (TT < 0.0) {
       TT += 24.0; is.JD -= 1.0;
@@ -533,13 +559,13 @@ void CastRelation(void)
     JulianToMdy(is.JD, &MM, &DD, &YY);
     if (!us.fHouse3D) {
       // Take midpoint of longitude and latitude separately.
-      OO = Ratio(Lon, ciTwin.lon, ratio);
+      OO = Ratio(Lon, ciTwin.lon, us.rRatio);
       if (RAbs(ciTwin.lon-Lon) > rDegHalf)
-        OO = Mod(OO+rDegMax*ratio);
-      AA = Ratio(Lat, ciTwin.lat, ratio);
+        OO = Mod(OO + rDegMax*us.rRatio);
+      AA = Ratio(Lat, ciTwin.lat, us.rRatio);
     } else {
       // Take true midpoint along great circle between the two locations.
-      SphRatio(Lon, Lat, ciTwin.lon, ciTwin.lat, ratio, &OO, &AA);
+      SphRatio(Lon, Lat, ciTwin.lon, ciTwin.lat, us.rRatio, &OO, &AA);
     }
     ciMain = ciCore;
     CastChart(0);
@@ -574,7 +600,7 @@ void PrintInDayEvent(int source, int aspect, int dest, int nVoid)
 {
   char sz[cchSzDef];
   int nEclipse, nEclipse2;
-  real rPct;
+  real rPct, rPct2;
   flag fSwap;
 
   // If the Sun changes sign, then print out if this is a season change.
@@ -627,8 +653,11 @@ void PrintInDayEvent(int source, int aspect, int dest, int nVoid)
       // Check for generic opposition that's an eclipse.
       nEclipse = NCheckEclipseLunar(us.objCenter, dest, source, &rPct);
       if (nEclipse > etNone) {
-        nEclipse2 = NCheckEclipseLunar(us.objCenter, source, dest, &rPct);
-        nEclipse = Max(nEclipse, nEclipse2);
+        nEclipse2 = NCheckEclipseLunar(us.objCenter, source, dest, &rPct2);
+        if (nEclipse2 > nEclipse) {
+          nEclipse = nEclipse2;
+          rPct = rPct2;
+        }
         AnsiColor(kWhiteA);
         sprintf(sz, " (%s Occultation", szEclipse[nEclipse]);
         PrintSz(sz);
@@ -645,7 +674,8 @@ void PrintInDayEvent(int source, int aspect, int dest, int nVoid)
       if (nEclipse > etNone) {
         AnsiColor(kWhiteA);
         sprintf(sz, " (%s %s%s", szEclipse[nEclipse], source == oSun ?
-          "Solar " : "", source == oSun && (dest == oMoo || FMoons(dest)) ?
+          "Solar " : "", source == oSun && (dest == oMoo || FMoons(dest)) &&
+          (us.fMoonMove || ObjOrbit(dest) == us.objCenter) ?
           "Eclipse" : "Occultation"); PrintSz(sz);
         if (us.fSeconds) {
           sprintf(sz, " %.0f%%", rPct); PrintSz(sz);
@@ -1130,9 +1160,9 @@ void ChartTransitInfluence(flag fProg)
 }
 
 
-// Print the locations of the astro-graph lines on the Earth for two charts as
-// specified with the -L -r0 switches. This includes Midheaven and Nadir lines,
-// zenith positions, and locations of Ascendant and Descendant lines.
+// Print the locations of astrocartography lines on the Earth for two charts,
+// as specified with the -L -r0 switches. This includes Midheaven and Nadir
+// lines, zenith positions, and locations of Ascendant and Descendant lines.
 
 flag ChartAstroGraphRelation(void)
 {
@@ -1590,6 +1620,7 @@ void ChartCalendarMonth(void)
 {
   char sz[cchSzDef];
   int mon = Mon, i, j, k;
+  flag fMonday = us.fIndian;
 
   if (mon < mJan)
     mon = mJan;
@@ -1597,13 +1628,16 @@ void ChartCalendarMonth(void)
   PrintTab(' ', (16-CchSz(szMonth[mon])) >> 1);
   sprintf(sz, "%s%5d\n", szMonth[mon], Yea); PrintSz(sz);
   for (i = 0; i < cWeek; i++) {
-    sprintf(sz, "%c%c%c", szDay[i][0], szDay[i][1], i < cWeek-1 ? ' ' : '\n');
+    j = !fMonday ? i : (i + 1) % 7;
+    sprintf(sz, "%.2s%c", szDay[j], i < cWeek-1 ? ' ' : '\n');
     PrintSz(sz);
   }
   j = DayOfWeek(mon, 1, Yea);
+  if (fMonday)
+    j = (j + 6) % 7;
   AnsiColor(kDefault);
   for (i = 0; i < j; i++) {
-    if (i == 0)
+    if (i == (!fMonday ? 0 : cWeek-2))
       AnsiColor(kRedA);
     PrintSz("-- ");
     if (i == 0)
@@ -1611,9 +1645,9 @@ void ChartCalendarMonth(void)
   }
   k = DayInMonth(mon, Yea);
   for (i = 1; i <= k; i = AddDay(mon, i, Yea, 1)) {
-    if (i == (int)Day)
+    if (i == Day)
       AnsiColor(kGreenA);
-    else if (j == 0 || j == cWeek-1)
+    else if (!fMonday ? (j == 0 || j == cWeek-1) : (j >= cWeek-2))
       AnsiColor(kRedA);
     sprintf(sz, "%2d", i); PrintSz(sz);
     if (j == 0 || j == cWeek-1 || i == Day)
@@ -1627,7 +1661,7 @@ void ChartCalendarMonth(void)
     }
   }
   while (j > 0 && j < cWeek) {
-    if (j == cWeek-1)
+    if (j == (!fMonday ? cWeek-1 : cWeek-2))
       AnsiColor(kRedA);
     j++;
     sprintf(sz, "--%c", j < cWeek ? ' ' : '\n'); PrintSz(sz);
@@ -1644,8 +1678,11 @@ void ChartCalendarYear(void)
 {
   char sz[cchSzDef];
   int r, w, c, m, d, dy, p[3], l[3], n[3];
+  flag fMonday = us.fIndian;
 
   dy = DayOfWeek(1, 1, Yea);
+  if (fMonday)
+    dy = (dy + 6) % 7;
   for (r = 0; r < 4; r++) {     // Loop over one set of three months.
     AnsiColor(kWhiteA);
     for (c = 0; c < 3; c++) {
@@ -1659,8 +1696,9 @@ void ChartCalendarYear(void)
     PrintL();
     for (c = 0; c < 3; c++) {
       for (d = 0; d < cWeek; d++) {
-        sprintf(sz, "%c%c%c", szDay[d][0], szDay[d][1],
-          d < cWeek-1 || c < 2 ? ' ' : '\n'); PrintSz(sz);
+        m = !fMonday ? d : (d + 1) % 7;
+        sprintf(sz, "%.2s%c", szDay[m], d < cWeek-1 || c < 2 ? ' ' : '\n');
+        PrintSz(sz);
       }
       if (c < 2)
         PrintTab(' ', MONTHSPACE-1);
@@ -1676,7 +1714,7 @@ void ChartCalendarYear(void)
         d = 0;
         if (w == 0)
           while (d < p[c]) {
-            if (d == 0)
+            if (!fMonday ? (d == 0) : (d == cWeek-2))
               AnsiColor(kRedA);
             PrintSz("-- ");
             if (d == 0)
@@ -1688,7 +1726,7 @@ void ChartCalendarYear(void)
           n[c] = AddDay(m, n[c], Yea, 1);
           if (n[c] == Day && m == Mon)
             AnsiColor(kGreenA);
-          else if (d == 0 || d == cWeek-1)
+          else if (!fMonday ? (d == 0 || d == cWeek-1) : (d >= cWeek-2))
             AnsiColor(kRedA);
           sprintf(sz, "%2d%c", n[c], d < cWeek-1 || c < 2 ? ' ' : '\n');
           PrintSz(sz);
@@ -1697,7 +1735,7 @@ void ChartCalendarYear(void)
           d++;
         }
         while (d < cWeek) {
-          if (d == 0 || d == cWeek-1)
+          if (!fMonday ? (d == 0 || d == cWeek-1) : (d >= cWeek-2))
             AnsiColor(kRedA);
           sprintf(sz, "--%c", d < cWeek-1 || c < 2 ? ' ' : '\n'); PrintSz(sz);
           if (d == 0)

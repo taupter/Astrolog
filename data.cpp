@@ -1,8 +1,8 @@
 /*
-** Astrolog (Version 7.80) File: data.cpp
+** Astrolog (Version 8.00) File: data.cpp
 **
 ** IMPORTANT NOTICE: Astrolog and all chart display routines and anything
-** not enumerated below used in this program are Copyright (C) 1991-2025 by
+** not enumerated below used in this program are Copyright (C) 1991-2026 by
 ** Walter D. Pullen (Astara@msn.com, http://www.astrolog.org/astrolog.htm).
 ** Permission is granted to freely use, modify, and distribute these
 ** routines provided these credits and notices remain unmodified with any
@@ -48,7 +48,7 @@
 ** Initial programming 8/28-30/1991.
 ** X Window graphics initially programmed 10/23-29/1991.
 ** PostScript graphics initially programmed 11/29-30/1992.
-** Last code change made 6/19/2025.
+** Last code change made 5/28/2026.
 */
 
 #include "astrolog.h"
@@ -81,12 +81,7 @@ US us = {
   0, 0, 0,
 
   // Main subflags
-#ifdef SWITCHES
-  0,
-#else
-  1,
-#endif
-  0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0,
 #ifdef PLACALC
 #ifndef SWISS
   1,
@@ -95,13 +90,13 @@ US us = {
 #endif
 #else
   0,
-#endif
+#endif // PLACALC
 #ifdef EPHEM
   0,
 #else
   1,
 #endif
-  0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
 
   // Obscure flags
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
@@ -125,6 +120,7 @@ US us = {
   1.0,
   0,
   -1,
+  oSun,
   0,
   ptCast,
   DIVISIONS,
@@ -141,7 +137,7 @@ US us = {
   NULL,
 
   // Value subsettings
-  0, 5, 200, cPart, 22, 0.0, 0.0, rDayInYear, 1.0, 1, 1, ccNone, ccNone,
+  0, 5, 200, cPart, 22, 0.0, 0.0, rDayInYear, 1.0, 0.5, ccNone, ccNone,
   24, 0, 0, rInvalid, 0.0, 0.0, 0.0, oEar, oEar, 0, 0, BIODAYS, 0, 0, 0,
 
   // AstroExpressions
@@ -149,13 +145,18 @@ US us = {
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-  NULL};
+  NULL, NULL, NULL, NULL};
 
 IS is = {
-  fFalse, fFalse, fFalse, fFalse, fFalse, fFalse, fFalse, fFalse,
+#ifdef SWITCHES
+  fFalse,
+#else
+  fTrue,
+#endif
+  fFalse, fFalse, fFalse, fFalse, fFalse, fFalse, fFalse, fFalse, fFalse,
   NULL, {0,0,0,0,0,0,0,0,0}, NULL, NULL, NULL,
-  0, cObj, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, 0, 0, 0, 0,
-  0, 0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0, cObj, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, 0, 0, 0,
+  0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0,
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, rAxis, 0.0, rInvalid, 0.0};
 
@@ -167,8 +168,8 @@ CI ciFour = {-1, 0,  0,    0.0,           0.0, 0.0, 0.0, 0.0,    NULL, NULL};
 CI ciFive = {-1, 0,  0,    0.0,           0.0, 0.0, 0.0, 0.0,    NULL, NULL};
 CI ciHexa = {-1, 0,  0,    0.0,           0.0, 0.0, 0.0, 0.0,    NULL, NULL};
 CI ciDefa = {-1, 0,  0,    0.0,           0.0, 0.0, 0.0, 0.0,    NULL, NULL};
-CI ciTran = {1,  1,  2025, 0.0,           0.0, 0.0, 0.0, 0.0,    NULL, NULL};
-CI ciSave = {6,  20, 2025, HMS(19,42,16), 1.0, 8.0, DEFAULT_LOC, NULL, NULL};
+CI ciTran = {1,  1,  2026, 0.0,           0.0, 0.0, 0.0, 0.0,    NULL, NULL};
+CI ciSave = {5,  31, 2026, HMS(1,45,13),  1.0, 8.0, DEFAULT_LOC, NULL, NULL};
 CI ciGreg = {10, 15, 1582, 0.0,           0.0, 0.0, 0.0, 0.0,    NULL, NULL};
 CP cp0, cp1, cp2, cp3, cp4, cp5, cp6;
 
@@ -221,8 +222,8 @@ byte ignore2[objMax] = {1,
 byte ignorea[cAspect+1] = {0,
   0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
-byte ignorez[arMax] = {0, 0, 0, 0};     // Restrictions for -Zd chart events.
-byte ignore7[rrMax] = {0, 1, 1, 0, 1};  // Restrictions for rulership types.
+byte ignorez[arMax] = {0, 0, 0, 0, 1, 1}; // Restrictions for -Zd events.
+byte ignore7[rrMax] = {0, 1, 1, 0, 1};    // Restrictions for rulership types.
 
 byte ignoreMem[objMax], ignore2Mem[objMax], ignoreaMem[cAspect+1],
   ignorezMem[arMax], ignore7Mem[rrMax], ignorefMem[6];
@@ -427,7 +428,7 @@ CONST char *rgszDecan[ddMax] = {"None", "Decan Ruler", "Decan Sign",
 
 CONST char *szEclipse[etMax] =
   {"No", "Penumbral", "Total Penumbral", "Partial", "Annular", "Total"};
-CONST char rgchEclipse[etMax+1] = "9ppPAT";
+CONST char rgchEclipse[etMax+1] = "9ptPAT";
 
 CONST char *szAppSep[6] = {"neg", "pos", "app", "sep", "wax", "wan"};
 CONST char rgchAppSep[6+1] = "-+asxn";
@@ -468,10 +469,10 @@ real rObjAdd[oNorm+2] = {0.0,
 
 int ruler1[oNorm+1] = {sSag,
   sLeo, sCan, sGem, sLib, sAri, sSag, sCap, sAqu, sPis, sSco,
-  sPis, sVir, sAqu, sLib, sSco, sAqu, sLeo, sSco, sPis, sLib, sAri,
+  sSag, sVir, sAqu, sLib, sSco, sAqu, sLeo, sSco, sPis, sLib, sAri,
   sAri, sTau, sGem, sCan, sLeo, sVir, sLib, sSco, sSag, sCap, sAqu, sPis,
   sVir, sLib, sSco, sLeo, sCap, sSag, sVir, sAri, sSag,
-  0, 0, sLib, sCan, sLeo, sAri, sTau, sGem, sCap,
+  sVir, sGem, sLib, sCan, sLeo, sAri, sTau, sGem, sCap,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 int ruler2[oNorm+1] = {0,
@@ -482,12 +483,12 @@ int ruler2[oNorm+1] = {0,
   0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-int exalt[oNorm+1] = {sGem,
+int exalt[oNorm+1] = {sTau,
   sAri, sTau, sVir, sPis, sCap, sCan, sLib, sSco, sCan, sAqu,
-  sCan, sTau, sCap, sLeo, sVir, sGem, sSag, sPis, sSag, sPis, sCap,
-  sLeo, sVir, sLib, sSco, sSag, sCap, sAqu, sPis, sAri, sTau, sGem, sCan,
+  sPis, sTau, sCap, sLeo, sVir, sGem, sSag, sPis, sSag, sPis, sCap,
+  sCap, sPis, sVir, sTau, sAri, sVir, sPis, sAqu, sCan, sLib, sSco, sCan,
   sCap, sGem, sVir, sAri, sSag, sAqu, sSco, sLeo, sPis,
-  0, 0, sGem, sVir, sCap, sSco, sLib, sPis, sAqu,
+  sLib, sAri, sGem, sVir, sCap, sSco, sLib, sPis, sAqu,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
@@ -551,7 +552,7 @@ int rgSignHie1[cSign+1] = {-1,
 int rgSignHie2[cSign+1] = {-1,
   -1, -1, -1, -1, oUra, -1, -1, -1, -1, -1, oVul, -1};
 int kRayA[cRay+2] = {kBlack,
-  kRed, kBlue, kGreen, kYellow, kOrange, kMagenta, kPurple, kWhite};
+  kRed, kIndigo, kForest, kYellow, kAmber, kRose, kViolet, kWhite};
 CONST char *szRayName[cRay+1] = {"",
   "Will & Power", "Love & Wisdom", "Active Creative Intelligence",
   "Harmony Through Conflict", "Concrete Science", "Idealism & Devotion",
@@ -560,13 +561,12 @@ CONST char *szRayWill[cRay+1] = {"",
   "Initiate", "Unify", "Evolve", "Harmonize", "Act", "Cause", "Express"};
 
 // Colors
-CONST char *szColor[cColor+4] = {"Black",
-  "Maroon", "DkGreen", "Orange", "DkBlue", "Purple", "DkCyan", "LtGray",
+CONST char *szColor[cColor2+5] = {"Black",
+  "Maroon", "DkGreen", "Maize", "DkBlue", "Purple", "DkCyan", "LtGray",
   "Gray", "Red", "Green", "Yellow", "Blue", "Magenta", "Cyan", "White",
-  "Element", "Ray", "Star", "Planet"};
-CONST char *szColorHTML[cColor] = {"Black",
-  "#7f0000", "#007f00", "#7f7f00", "#00007f", "Purple", "#007f7f", "#bfbfbf",
-  "#7f7f7f", "Red", "00ff00", "Yellow", "Blue", "Magenta", "Cyan", "White"};
+  "DkGray", "Orange", "Pink", "Brown",
+  "Indigo", "Forest", "Amber", "Rose", "Sky", "Violet",
+  "Element", "Ray", "Star", "Planet", "Auto"};
 int kMainA[9] = {kBlack, kWhite, kLtGray, kDkGray,
   kMaroon, kDkGreen, kDkCyan, kDkBlue, kMagenta};
 int kRainbowA[cRainbow+1] = {kWhite,
@@ -593,6 +593,16 @@ int kObjU[oNorm+2] = {kYellow,
     kPlanet, kPlanet, kPlanet, kPlanet, kPlanet, kPlanet, kPlanet, kPlanet,
     kPlanet, kPlanet, kPlanet, kPlanet, kPlanet, kPlanet, kPlanet, kPlanet,
   kStar};
+#ifndef GRAPH
+// Copy of rgbbmpDef in xdata.c for non-graphics compiles.
+CONST KV rgbbmp[cColor2] = {
+  0x000000, 0x00007f, 0x007f00, 0x007f7f, // Main colors
+  0x7f0000, 0x7f007f, 0x7f7f00, 0xbfbfbf,
+  0x7f7f7f, 0x0000ff, 0x00ff00, 0x00ffff,
+  0xff0000, 0xff00ff, 0xffff00, 0xffffff,
+  0x3f3f3f, 0x007fff, 0x7f7fff, 0x003f7f, // Extra colors
+  0xff3f3f, 0x008000, 0x00a5ff, 0xdf3eff, 0xff3a00, 0xcc0099}; // Ray colors
+#endif
 
 // Influence information used by ChartInfluence() follows. The influence of a
 // planet in its ruling or exalting sign or house is tacked onto the last two
@@ -672,7 +682,7 @@ CONST real rObjYear[oNorm+1] = {1.0, 0.0, 27.32166/rDayInYear,
   4.14/rDayInYear, 2.52/rDayInYear, 1.41/rDayInYear, -5.88/rDayInYear,
   1.12/rDayInYear, 360.11/rDayInYear, 6.39/rDayInYear, 38.2/rDayInYear,
   24.85/rDayInYear, 32.17/rDayInYear, 20.16/rDayInYear,
-  11.8623, 29.458, 84.01, 164.79, 248.54};  // Units: years
+  11.862615, 29.447498, 84.016846, 164.79132, 247.92065};  // Units: years
 real rObjDiam[oNorm+1] = {12742.0168, 1392000.0, 3475.0,
   4878.8, 12103.6, 6779.0, 139822.0, 116464.0, 50724.0, 49244.0, 2376.6,
   271.37, 939.4, 545.0, 246.596, 525.4, 0.0, 0.0, 0.0,
@@ -687,7 +697,7 @@ real rObjDiam[oNorm+1] = {12742.0168, 1392000.0, 3475.0,
   789.0*2.0, 761.0*2.0, 585.0*2.0, 579.0*2.0, 236.0*2.0,
   1353.0*2.0, 209.0*2.0, 170.0*2.0,
   605.0*2.0, 39.0*2.0, 38.0*2.0, 13.0*2.0, 11.0*2.0,
-  142984.0, 120536.0, 51118.0, 49528.0, 2372.0};  // Units: km
+  139822.0, 116464.0, 50724.0, 49244.0, 2376.6};  // Units: km
 CONST real rObjDay[oNorm+1] = {24.0, 30.0*24.0, 27.322*24.0,
   58.65*24.0, 243.01*24.0, 24.6229, 9.841, 10.233, 17.9, 19.2, 6.3872*24.0,
   5.918, 9.074170, 7.8132, 7.210, 5.34212766, 0.0, 0.0, 0.0,
@@ -789,8 +799,8 @@ CONST AI ai[cPart] = {
   {"h09h03 04 h", "Marriage Contracts"},
   {"   h09r09 h", "Travel by Land"},
   {"    08H08 h", "Travel by Air"},
-  {" 30 01 02Fh", "Destiny"},
-  {" 30 02 01Fh", "Vocation & Status"},
+  {" 31 01 02Fh", "Destiny"},
+  {" 31 02 01Fh", "Vocation & Status"},
   {"   019 01 h", "Honor, Nobility (Day)"},
   {"   033 02 h", "Honor, Nobility (Night)"},
   {"    10 01 h", "Organization"},
@@ -882,7 +892,7 @@ CONST AI ai[cPart] = {
   {"    04 03FC", "Silk & Cotton"},
   {"    05 07FC", "Purgatives (Bitter)"},
   {"    06 07FC", "Purgatives (Acid)"},
-  {"    30D   H", "Secrets"},
+  {"    31D   H", "Secrets"},
   {"    02 03FH", "Information True/False"},
   {"    F D  FH", "Injury to Business"},
   {" 03 07 06 H", "Freedmen & Servants"},
@@ -896,7 +906,7 @@ CONST AI ai[cPart] = {
   {"    05 07 H", "Lost Animal (Dark)"},
   {"    03 05 H", "Lawsuit"},
   {"h08 05 02 H", "Decapitation"},
-  {" 30 07 02 H", "Torture"},
+  {" 31 07 02 H", "Torture"},
   {" 02h04D   H", "Lost Objects"}
 };
 #endif // ARABIC
@@ -986,9 +996,9 @@ CONST char *szCnstlGenitive[cCnstl+1] = {"",
 CONST int iCnstlZodiac[cSign+1] = {0,
   7, 78, 38, 12, 46, 86, 49, 73, 72, 16, 4, 66};
 CONST real lonCnstlZodiac[cSign+2] = {0.0,
-  ZDMS(sAri, 29, 2, 44), ZDMS(sTau, 23, 23, 20), ZDMS(sCan, 0, 0, 0),
-  ZDMS(sCan, 27, 54, 38), ZDMS(sLeo, 18, 34, 4), ZDMS(sVir, 23, 27, 53),
-  ZDMS(sSco, 8, 22, 30), ZDMS(sSag, 2, 5, 21), ZDMS(sSag, 7, 46, 49),
+  ZDMS(sAri, 29,  2, 44), ZDMS(sTau, 23, 23, 20), ZDMS(sCan,  0,  0,  0),
+  ZDMS(sCan, 27, 54, 38), ZDMS(sLeo, 18, 34,  4), ZDMS(sVir, 23, 27, 53),
+  ZDMS(sSco,  8, 22, 30), ZDMS(sSag,  2,  5, 21), ZDMS(sSag,  7, 46, 49),
   ZDMS(sSag, 26, 19, 44), ZDMS(sCap, 29, 49, 33), ZDMS(sAqu, 26, 46, 45),
   ZDMS(sPis, 22, 26, 21)};
 #endif // CONSTEL
@@ -1164,6 +1174,471 @@ CONST char *szModify[3][cAspect] =
   {"somewhat ", "somewhat ", "somewhat ", "somewhat ", "some ", "somewhat ",
   "sometimes ", "sometimes ", "sometimes ", "sometimes ", "sometimes ",
   "", "", "", "", "", "", "", "", "", "", "", "", ""}};
+
+// Meanings of the Sabian Symbols for each of the 360 degrees.
+
+CONST char *szSabian[nDegMax] = {
+"A woman just risen from the sea; a seal is embracing her", // 0-1 Ari
+"A comedian reveals human nature", // 1-2 Ari
+"The cameo profile of a man, suggesting the shape of his country", // 2-3 Ari
+"Two lovers strolling on a secluded walk", // 3-4 Ari
+"A triangle with wings", // 4-5 Ari
+"A square, with one of its sides brightly illumined", // 5-6 Ari
+"A man succeeds in expressing himself simultaneously in two realms", // 6-7 Ari
+"A large woman's hat with streamers blown by an east wind", // 7-8 Ari
+"A crystal gazer", // 8-9 Ari
+"A teacher gives new symbolic forms to traditional images", // 9-10 Ari
+"The ruler of a nation", // 10-11 Ari
+"A triangularly shaped flight of wild geese", // 11-12 Ari
+"An unexploded bomb reveals an unsuccessful social protest", // 12-13 Ari
+"A serpent coiling near a man and a woman", // 13-14 Ari
+"An Indian weaving a ceremonial blanket", // 14-15 Ari
+"Nature spirits are seen at work in the light of sunset", // 15-16 Ari
+"Two dignified spinsters sitting in silence", // 16-17 Ari
+"An empty hammock stretched between two trees", // 17-18 Ari
+"The \"magic carpet\" of East Asian imagery", // 18-19 Ari
+"A young girl feeding birds in winter", // 19-20 Ari
+"A pugilist enters the ring", // 20-21 Ari
+"The gate to the garden of all fulfilled desires", // 21-22 Ari
+"A pregnant woman in light summer dress", // 22-23 Ari
+"Blown inward by the wind, the curtains of an open window take the shape of a\
+ cornucopia", // 23-24 Ari
+"The possibility for man to gain experience at two levels of being",
+// 24-25 Ari
+"A man possessed of more gifts than he can hold", // 25-26 Ari
+"Through imagination a lost opportunity is regained", // 26-27 Ari
+"A large audience confronts the performer who disappointed its expectations",
+// 27-28 Ari
+"The music of the spheres", // 28-29 Ari
+"A duck pond and its brood", // 29-30 Ari
+"A clear mountain stream", // 0-1 Tau
+"An electrical storm", // 1-2 Tau
+"Natural steps lead to a lawn of clover in bloom", // 2-3 Tau
+"The pot of gold at the end of the rainbow", // 3-4 Tau
+"A widow at an open grave", // 4-5 Tau
+"Cantilever bridge across a deep gorge", // 5-6 Tau
+"The woman of Samaria at the ancestral well", // 6-7 Tau
+"A sleigh on land uncovered by snow", // 7-8 Tau
+"A fully decorated Christmas tree", // 8-9 Tau
+"A Red Cross nurse", // 9-10 Tau
+"A woman watering flowers in her garden.", // 10-11 Tau
+"A young couple window shopping", // 11-12 Tau
+"A porter carrying heavy baggage", // 12-13 Tau
+"On the beach, children play while shellfish grope at the edge of the water",
+// 13-14 Tau
+"Head covered with a rakish silk hat, muffled against the cold, a man braves \
+a storm", // 14-15 Tau
+"An old teacher fails to interest his pupils in traditional knowledge",
+// 15-16 Tau
+"A symbolical battle between \"swords\" and \"torches\"", // 16-17 Tau
+"A woman airing an old bag through the open window of her room", // 17-18 Tau
+"A new continent rising out of the ocean", // 18-19 Tau
+"Wisps of winglike clouds streaming across the sky", // 19-20 Tau
+"A finger pointing to a line in an open book", // 20-21 Tau
+"White dove flying over troubled waters", // 21-22 Tau
+"A jewelry shop filled with valuable gems", // 22-23 Tau
+"An Indian warrior riding fiercely, human scalps hanging from his belt",
+// 23-24 Tau
+"A vast public park", // 24-25 Tau
+"A Spanish gallant serenades his beloved", // 25-26 Tau
+"An old Indian woman selling the artifacts of her tribe to passerby",
+// 26-27 Tau
+"A woman, past her \"change of life\", experiences a new love", // 27-28 Tau
+"Two cobblers working at a table", // 28-29 Tau
+"A peacock parading on the terrace of an old castle", // 29-30 Tau
+"A glass-bottomed boat reveals undersea wonders", // 0-1 Gem
+"Santa Claus furtively filling stockings hanging in front of fireplace",
+// 1-2 Gem
+"The garden of the tuileries in Paris", // 2-3 Gem
+"Holly and mistletoe reawaken old memories of Christmas", // 3-4 Gem
+"A revolutionary magazine asking for action", // 4-5 Gem
+"Workmen drilling for oil", // 5-6 Gem
+"A well with bucket and rope under the shade of majestic trees", // 6-7 Gem
+"Aroused strikers surround a factory", // 7-8 Gem
+"A quiver filled with arrows", // 8-9 Gem
+"An airplane performing a nose dive", // 9-10 Gem
+"Newly opened lands offer the pioneer new opportunities for experience",
+// 10-11 Gem
+"A black girl fights for her independence in the city", // 11-12 Gem
+"A famous pianist giving a concert performance", // 12-13 Gem
+"Bridging physical space and social distinctions, two men communicate telepat\
+hically", // 13-14 Gem
+"Two Dutch children talking to each other, exchanging their knowledge",
+// 14-15 Gem
+"A woman activist in an emotional speech dramatizing her cause", // 15-16 Gem
+"The head of a robust youth changes into that of a mature thinker",
+// 16-17 Gem
+"Two Chinese men converse in their native tongue in an American city",
+// 17-18 Gem
+"A large archaic volume reveals a traditional wisdom", // 18-19 Gem
+"A modern cafeteria displays an abundance of food, products of various region\
+s", // 19-20 Gem
+"A tumultuous labor demonstration", // 20-21 Gem
+"Dancing couples in a harvest festival", // 21-22 Gem
+"Three fledglings in a nest high in a tree", // 22-23 Gem
+"Children skating over a frozen village pond", // 23-24 Gem
+"A gardener trimming large palm trees", // 24-25 Gem
+"Frost-covered trees against winter skies", // 25-26 Gem
+"A Romani emerging from the forest wherein her tribe is encamped", // 26-27 Gem
+"Through bankruptcy, society gives to an overburdened individual the opportun\
+ity to begin again", // 27-28 Gem
+"The first mockingbird of spring", // 28-29 Gem
+"A parade of bathing beauties before large beach crowds", // 29-30 Gem
+"On a ship the sailors lower an old flag and raise a new one", // 0-1 Can
+"A man on a magic carpet hovers over a large area of land", // 1-2 Can
+"A man bundled in fur leads a shaggy deer", // 2-3 Can
+"A cat arguing with a mouse", // 3-4 Can
+"At a railroad crossing, an automobile is wrecked by a train", // 4-5 Can
+"Game birds feathering their nests", // 5-6 Can
+"Two nature spirits dancing under the moonlight", // 6-7 Can
+"A group of rabbits dressed in human clothes walk as if on parade", // 7-8 Can
+"A small girl bends over a pond trying to catch a fish", // 8-9 Can
+"A large diamond in the first stages of the cutting process", // 9-10 Can
+"A clown caricaturing well-known personalities", // 10-11 Can
+"A Chinese woman nursing a baby whose aura reveals him to be the reincarnatio\
+n of a great teacher", // 11-12 Can
+"A hand with a prominent thumb is held out for study", // 12-13 Can
+"A very old man facing a vast dark space to the Northeast", // 13-14 Can
+"In a sumptuous dining hall guests relax after partaking of a huge banquet",
+// 14-15 Can
+"A man studying a mandala in front of him, with the help of a very ancient bo\
+ok", // 15-16 Can
+"The unfoldment of multilevel potentialities issuing from an original germ",
+// 16-17 Can
+"A hen scratching the ground to find nourishment for her progeny", // 17-18 Can
+"A priest performing a marriage ceremony", // 18-19 Can
+"Venetian gondoliers giving a serenade", // 19-20 Can
+"A famous singer is proving her virtuosity during an operatic performance",
+// 20-21 Can
+"A young woman awaiting a sailboat", // 21-22 Can
+"The meeting of a literary society", // 22-23 Can
+"A woman and two men castaways on a small island of the South Seas",
+// 23-24 Can
+"A willful man is overshadowed by a descent of superior power", // 24-25 Can
+"Guests are reading in the library of a luxurious home", // 25-26 Can
+"A violent storm in a canyon filled with expensive homes", // 26-27 Can
+"An Indian girl introduces her white lover to her assembled tribe",
+// 27-28 Can
+"A Greek muse weighing newborn twins in golden scales", // 28-29 Can
+"A daughter of the American revolution", // 29-30 Can
+"Blood rushes to a man's head as his vital energies are mobilized under the s\
+pur of ambition", // 0-1 Leo
+"An epidemic of mumps", // 1-2 Leo
+"A middle-aged woman, her long hair flowing over her shoulders and in a youth\
+ful garment", // 2-3 Leo
+"A formally dressed elderly man stands near trophies he brought back from a h\
+unting expedition", // 3-4 Leo
+"Rock formations tower over a deep canyon", // 4-5 Leo
+"A conservative, old-fashioned lady is confronted by a \"hippie\" girl",
+// 5-6 Leo
+"The constellations of stars shine brilliantly in the night sky", // 6-7 Leo
+"A communist activist spreading his revolutionary ideals", // 7-8 Leo
+"Glass blowers shape beautiful vases with their controlled breathing",
+// 8-9 Leo
+"Early morning dew sparkles as sunlight floods the field", // 9-10 Leo
+"Children play on a swing hanging from the branches of a huge oak tree",
+// 10-11 Leo
+"An evening party of adults on a lawn illumined by fancy lanterns",
+// 11-12 Leo
+"An old sea captain rocking himself on the porch of his cottage", // 12-13 Leo
+"A human soul seeking opportunities for outward manifestation", // 13-14 Leo
+"A pageant, with its spectacular floats, moves along a street crowded with ch\
+eering people", // 14-15 Leo
+"The storm ended, all nature rejoices in brilliant sunshine", // 15-16 Leo
+"A volunteer church choir singing religious hymns", // 16-17 Leo
+"A chemist conducts an experiment for his students", // 17-18 Leo
+"A houseboat party", // 18-19 Leo
+"Zuni Indians perform a ritual to the sun", // 19-20 Leo
+"Intoxicated chickens dizzily flap their wings trying to fly", // 20-21 Leo
+"A carrier pigeon fulfilling its mission", // 21-22 Leo
+"In a circus the bareback rider displays her dangerous skill", // 22-23 Leo
+"Totally concentrated upon inner spiritual attainment, a man is sitting in a \
+state of complete neglect of bodily appearance and cleanliness", // 23-24 Leo
+"A large camel is seen crossing a vast and forbidding desert", // 24-25 Leo
+"After the heavy storm, a rainbow", // 25-26 Leo
+"The luminescence of dawn in the eastern sky", // 26-27 Leo
+"Many little birds on a limb of a big tree", // 27-28 Leo
+"A mermaid emerges from the ocean waves ready for rebirth in human form",
+// 28-29 Leo
+"An unsealed letter", // 29-30 Leo
+"In a portrait, the significant features of a man's head are artistically emp\
+hasized", // 0-1 Vir
+"A large white cross dominates the landscape", // 1-2 Vir
+"Two guardian angels", // 2-3 Vir
+"Black and white children play together happily", // 3-4 Vir
+"A man becoming aware of nature spirits and normally unseen spiritual agencie\
+s", // 4-5 Vir
+"A merry-go-round", // 5-6 Vir
+"A harem", // 6-7 Vir
+"A five-year-old child takes a first dancing lesson", // 7-8 Vir
+"An expressionist painter at work", // 8-9 Vir
+"Two heads looking out and beyond the shadows", // 9-10 Vir
+"In her baby a mother sees her deep longing for a son answered", // 10-11 Vir
+"After the wedding, the groom snatches the veil away from his bride",
+// 11-12 Vir
+"A powerful statesman overcomes a state of political hysteria", // 12-13 Vir
+"An aristocratic family tree", // 13-14 Vir
+"A fine lace handkerchief, heirloom from valorous ancestors", // 14-15 Vir
+"In the zoo, children are brought face to face with an orangutan", // 15-16 Vir
+"A volcanic eruption", // 16-17 Vir
+"An Ouija board", // 17-18 Vir
+"A swimming race", // 18-19 Vir
+"A caravan of cars headed to the West coast", // 19-20 Vir
+"A girls' basketball team", // 20-21 Vir
+"A royal coat of arms enriched with precious stones", // 21-22 Vir
+"A lion tamer displays his skill and character", // 22-23 Vir
+"Mary and her little lamb", // 23-24 Vir
+"A flag at half-mast in front of a public building", // 24-25 Vir
+"A boy with a censer serves the priest near the altar", // 25-26 Vir
+"A group of aristocratic ladies meet ceremonially at a court's function",
+// 26-27 Vir
+"A baldheaded man who has seized power", // 27-28 Vir
+"A seeker after occult knowledge is reading an ancient scroll which illumines\
+ his mind", // 28-29 Vir
+"Totally intent upon completing an immediate task, a man is deaf to any allur\
+ement", // 29-30 Vir
+"In a collection of perfect specimens of many biological forms, a butterfly d\
+isplays the beauty of its wings, its body impaled by a fine dart", // 0-1 Lib
+"The transmutation of the fruits of past experiences into the seed-realizatio\
+ns of the forever creative spirit", // 1-2 Lib
+"The dawn of a new day reveals everything changed", // 2-3 Lib
+"Around a campfire a group of young people sit in spiritual communion",
+// 3-4 Lib
+"A man revealing to his students the foundation of an inner knowledge upon wh\
+ich a \"new world\" could be built", // 4-5 Lib
+"A man watches his ideals taking a concrete form before his inner vision",
+// 5-6 Lib
+"A woman feeding chickens and protecting them from the hawks", // 6-7 Lib
+"A blazing fireplace in a deserted home", // 7-8 Lib
+"Three \"old masters\" hanging on the wall of a special room in an art galler\
+y", // 8-9 Lib
+"Having passed through narrow rapids, a canoe reaches calm waters", // 9-10 Lib
+"A professor peering over his glasses at his students", // 10-11 Lib
+"Miners are surfacing from a deep coal mine", // 11-12 Lib
+"Children blowing soap bubbles", // 12-13 Lib
+"In the heat of the noon hour a man takes a siesta", // 13-14 Lib
+"Circular paths", // 14-15 Lib
+"After a storm a boat landing stands in need of reconstruction", // 15-16 Lib
+"A retired sea captain watches ships entering and leaving the harbor",
+// 16-17 Lib
+"Two men placed under arrest", // 17-18 Lib
+"A gang of robbers in hiding", // 18-19 Lib
+"A rabbi performing his duties", // 19-20 Lib
+"A Sunday crowd enjoying the beach", // 20-21 Lib
+"A child giving birds a drink at a fountain", // 21-22 Lib
+"Chanticleer's voice heralds sunrise", // 22-23 Lib
+"A butterfly with a third wing on its left side", // 23-24 Lib
+"The sight of an Autumn leaf brings to a pilgrim the sudden revelation of the\
+ mystery of life and death", // 24-25 Lib
+"An eagle and a large white dove change into each other", // 25-26 Lib
+"An airplane sails, high in the clear sky", // 26-27 Lib
+"A man becoming aware of spiritual forces surrounding and assisting him",
+// 27-28 Lib
+"Mankind's vast and enduring effort to reach for knowledge transferable from \
+generation to generation", // 28-29 Lib
+"Three mounds of knowledge on a philosopher's head", // 29-30 Lib
+"A crowded sightseeing bus on a city street", // 0-1 Sco
+"A delicate bottle of perfume lies broken, releasing its fragrance", // 1-2 Sco
+"A house-raising party in a small village enlists the neighbors' cooperation",
+// 2-3 Sco
+"A youth carries a lighted candle in a devotional ritual", // 3-4 Sco
+"A massive rocky shore resists the pounding of the sea", // 4-5 Sco
+"The gold rush tears men away from their native soil", // 5-6 Sco
+"Deep-sea divers", // 6-7 Sco
+"A calm lake bathed in moonlight", // 7-8 Sco
+"A dentist at work", // 8-9 Sco
+"A fellowship supper reunites old comrades", // 9-10 Sco
+"A drowning man is being rescued", // 10-11 Sco
+"An official embassy ball", // 11-12 Sco
+"An inventor performs a laboratory experiment", // 12-13 Sco
+"Telephone lineman at work installing new connections", // 13-14 Sco
+"Children playing around five mounds of sand", // 14-15 Sco
+"A girl's face breaking into a smile", // 15-16 Sco
+"A woman, fecundated by her own spirit, is \"great with child\"", // 16-17 Sco
+"A path through woods brilliant with multicolored splendor", // 17-18 Sco
+"A parrot repeats the conversation he has overheard", // 18-19 Sco
+"A woman draws away two dark curtains closing the entrance to a sacred pathwa\
+y", // 19-20 Sco
+"Obeying his conscience, a soldier resists orders", // 20-21 Sco
+"Hunters shooting wild ducks", // 21-22 Sco
+"A rabbit metamorphoses into a nature sprit", // 22-23 Sco
+"After having heard an inspired individual deliver his \"Sermon on the Mount,\
+\" crowds are returning home", // 23-24 Sco
+"An X-ray photograph", // 24-25 Sco
+"American Indians making camp after moving into a new territory", // 25-26 Sco
+"A military band marches noisily on through the city streets", // 26-27 Sco
+"The king of the fairies approaching his domain", // 27-28 Sco
+"An Indian woman pleading to the chief for the lives of her children",
+// 28-29 Sco
+"Children in Halloween costumes indulge in various pranks", // 29-30 Sco
+"Retired army veterans gather to reawaken old memories", // 0-1 Sag
+"White-capped waves display the power of wind over sea", // 1-2 Sag
+"Two men playing chess", // 2-3 Sag
+"A little child learning to walk with the encouragement of his parents",
+// 3-4 Sag
+"An old owl sits alone on the branch of a large tree", // 4-5 Sag
+"A game of cricket", // 5-6 Sag
+"Cupid knocks at the door of a human heart", // 6-7 Sag
+"Within the depths of the Earth new elements are being formed", // 7-8 Sag
+"A mother leads her small child step by step up a steep stairway", // 8-9 Sag
+"A theatrical representation of a golden-haired goddess of opportunity",
+// 9-10 Sag
+"In the left section of an archaic temple, a lamp burns in a container shaped\
+ like a human body", // 10-11 Sag
+"A flag turns into an eagle; the eagle into a chanticleer saluting the dawn",
+// 11-12 Sag
+"A widow's past is brought to light", // 12-13 Sag
+"The Great Pyramid and the Sphinx", // 13-14 Sag
+"The ground hog looking for its shadow on Ground Hog Day", // 14-15 Sag
+"Sea gulls fly around a ship in expectation of food", // 15-16 Sag
+"An Easter sunrise service draws a large crowd", // 16-17 Sag
+"Children playing on the beach, their heads protected by sunbonnets",
+// 17-18 Sag
+"Pelicans menaced by the behavior and refuse of men seek safer areas for brin\
+ging up their young", // 18-19 Sag
+"In an old-fashioned Northern village men cut the ice of a frozen pond for us\
+e during the Summer", // 19-20 Sag
+"A child and a dog wearing borrowed eyeglasses", // 20-21 Sag
+"A Chinese laundry", // 21-22 Sag
+"A group of immigrants as they fulfill the requirements of entrance into the \
+new country", // 22-23 Sag
+"A bluebird perched on the gate of a cottage", // 23-24 Sag
+"A chubby boy on a hobby-horse", // 24-25 Sag
+"A flag bearer in a battle", // 25-26 Sag
+"A sculptor at his work", // 26-27 Sag
+"An old bridge over a beautiful stream is still in constant use", // 27-28 Sag
+"A fat boy mowing the lawn of his house on an elegant suburban street",
+// 28-29 Sag
+"The Pope blessing the faithful", // 29-30 Sag
+"An Indian chief claims power from the assembled tribe", // 0-1 Cap
+"Three rose windows in a Gothic church, one damaged by war", // 1-2 Cap
+"A human soul, in its eagerness for new experiences, seeks embodiment",
+// 2-3 Cap
+"A group of people outfitting a large canoe at the start of a journey by wate\
+r", // 3-4 Cap
+"Indians on the warpath. While some men row a well-filled canoe, others in it\
+ perform a war dance", // 4-5 Cap
+"Ten logs lie under an archway leading to darker woods", // 5-6 Cap
+"A veiled prophet speaks, seized by the power of a god", // 6-7 Cap
+"In a sunlit home domesticated birds sing joyously", // 7-8 Cap
+"An Angel carrying a harp", // 8-9 Cap
+"An albatross feeding from the hand of a sailor", // 9-10 Cap
+"A large group of pheasant on a private estate", // 10-11 Cap
+"An illustrated lecture on natural science reveals little-known aspects of li\
+fe", // 11-12 Cap
+"A fire worshipper meditates on the ultimate realities of existence",
+// 12-13 Cap
+"An ancient bas-relief carved in granite remains a witness to a long-forgotte\
+n culture", // 13-14 Cap
+"In a hospital, the children's ward is filled with toys", // 14-15 Cap
+"School grounds filled with boys and girls in gymnasium suits", // 15-16 Cap
+"A repressed woman finds a psychological release in nudism", // 16-17 Cap
+"The Union Jack flag files from a British warship", // 17-18 Cap
+"A five-year-old child carrying a bag filled with groceries", // 18-19 Cap
+"A hidden choir is singing during a religious service", // 19-20 Cap
+"A relay race", // 20-21 Cap
+"By accepting defeat gracefully, a general reveals nobility of character",
+// 21-22 Cap
+"A soldier receiving two awards for bravery in combat", // 22-23 Cap
+"A woman entering a convent", // 23-24 Cap
+"A store filled with precious East Asian rugs", // 24-25 Cap
+"A nature sprit dancing in the iridescent mist of a waterfall", // 25-26 Cap
+"Pilgrims climbing the steep steps leading to a mountain shrine", // 26-27 Cap
+"A large aviary", // 27-28 Cap
+"A woman reading tea leaves", // 28-29 Cap
+"A secret meeting of men responsible for executive decisions in world affairs",
+// 29-30 Cap
+"An old adobe mission in California", // 0-1 Aqu
+"An unexpected thunderstorm", // 1-2 Aqu
+"A deserter from the navy", // 2-3 Aqu
+"A Hindu yogi demonstrates his healing powers", // 3-4 Aqu
+"A council of ancestors is seen implementing the efforts of a young leader",
+// 4-5 Aqu
+"A masked figure performs ritualistic acts in a mystery play", // 5-6 Aqu
+"A child is seen being born out of an egg", // 6-7 Aqu
+"Beautifully gowned wax figures on display", // 7-8 Aqu
+"A flag is seen turning into an eagle", // 8-9 Aqu
+"A man who had for a time become the embodiment of a popular ideal is made to\
+ realize that as a person he is not this ideal", // 9-10 Aqu
+"During a silent hour, a man receives a new inspiration which may change his \
+life", // 10-11 Aqu
+"On a vast staircase stand people of different types, graduated upward",
+// 11-12 Aqu
+"A barometer", // 12-13 Aqu
+"A train entering a tunnel", // 13-14 Aqu
+"Two lovebirds sitting on a fence and singing happily", // 14-15 Aqu
+"A big businessman at his desk", // 15-16 Aqu
+"A watchdog stands guard, protecting his master and his possessions",
+// 16-17 Aqu
+"A man's secret motives are being publicly unmasked", // 17-18 Aqu
+"A forest fire is being subdued by the use of water, chemicals and sheer musc\
+ular energy", // 18-19 Aqu
+"A large white dove bearing a message", // 19-20 Aqu
+"A disappointed and disillusioned woman courageously faces a seemingly empty \
+life", // 20-21 Aqu
+"A rug is placed on the floor of a nursery to allow children to play in comfo\
+rt and warmth", // 21-22 Aqu
+"A big bear sitting down and waving all its paws", // 22-23 Aqu
+"A man, having overcome his passions, teaches deep wisdom in terms of his exp\
+erience", // 23-24 Aqu
+"A butterfly with the right wing more perfectly formed", // 24-25 Aqu
+"A garage man testing a car's battery with a hydrometer", // 25-26 Aqu
+"An ancient pottery bowl filled with fresh violets", // 26-27 Aqu
+"A tree felled and sawed to ensure a supply of wood for the winter",
+// 27-28 Aqu
+"A butterfly emerging from a chrysalis", // 28-29 Aqu
+"Deeply rooted in the past of a very ancient culture, a spiritual brotherhood\
+ in which many individual minds are merged into the glowing light of a unanim\
+ous consciousness is revealed to one who has emerged successfully from his me\
+tamorphosis", // 29-30 Aqu
+"In a crowded marketplace farmers and middlemen display a great variety of pr\
+oducts", // 0-1 Pis
+"A squirrel hiding from hunters", // 1-2 Pis
+"Petrified tree trunks lie broken on desert sand", // 2-3 Pis
+"Heavy car traffic on a narrow isthmus linking two seashore resorts",
+// 3-4 Pis
+"A church bazaar", // 4-5 Pis
+"A parade of army officers in full dress", // 5-6 Pis
+"Illumined by a shaft of light, a large cross lies on rocks surrounded by sea",
+// 6-7 Pis
+"A girl blowing a bugle", // 7-8 Pis
+"A jockey spurs his horse, intent on outdistancing his rivals", // 8-9 Pis
+"An aviator pursues his journey, flying through ground-obscuring clouds",
+// 9-10 Pis
+"Men traveling a narrow path, seeking illumination", // 10-11 Pis
+"In the sanctuary of an occult brotherhood, newly initiated members are being\
+ examined and their character tested", // 11-12 Pis
+"An ancient sword, used in many battles, is displayed in a museum",
+// 12-13 Pis
+"A lady wrapped in a large stole of fox fur", // 13-14 Pis
+"An officer instructing his men before a simulated assault under a barrage of\
+ live shells", // 14-15 Pis
+"In the quiet of his study a creative individual experiences a flow of inspir\
+ation", // 15-16 Pis
+"An Easter parade", // 16-17 Pis
+"In a gigantic tent, villagers witness a spectacular performance", // 17-18 Pis
+"A master instructing his disciple", // 18-19 Pis
+"A table set for an evening meal", // 19-20 Pis
+"Under the watchful and kind eye of a Chinese servant, a girl fondles a littl\
+e white lamb", // 20-21 Pis
+"A prophet carrying tablets of the new law is walking down the slopes of Moun\
+t Sinai", // 21-22 Pis
+"A \"materializing\" medium giving a seance", // 22-23 Pis
+"On a small island surrounded by the vast expanse of the sea, people are seen\
+ living in close interaction", // 23-24 Pis
+"A religious organization succeeds in overcoming the corrupting influence of \
+perverted practices and materialized ideals", // 24-25 Pis
+"Watching the very thin Moon crescent appearing at sunset, different people r\
+ealize that the time has come to go ahead with their different projects",
+// 25-26 Pis
+"The harvest Moon illumines a clear autumnal sky", // 26-27 Pis
+"A fertile garden under the Full Moon reveals a variety of full-grown vegetab\
+les", // 27-28 Pis
+"Light breaking into many colors as it passes through a prism", // 28-29 Pis
+"A majestic rock formation resembling a face is idealized by a boy who takes \
+it as his ideal of greatness, and as he grows up, begins to look like it"
+// 29-30 Pis
+};
 #endif // INTERPRET
 
 /* data.cpp */

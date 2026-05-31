@@ -1,4 +1,4 @@
-@AD780  ; Astrolog 7.80 default settings file astrolog.as
+@AD800  ; Astrolog 8.00 default settings file astrolog.as
 
 ; The contents of this file can be automatically generated with the
 ; "File / Save Program Settings" menu command, or with the -od command switch.
@@ -16,22 +16,25 @@
 _s      ; Which zodiac to use       ["_s" is tropical, "=s" is sidereal]
 :s Faga ; Sidereal zodiac offset    [Change "Faga" to desired ayanamsa ]
 :sz     ; Zodiac display format     ["z" is sign, "d" is 0-360 deg, etc]
+_sr0    ; Latitudes or declinations ["_sr0" shows lat., "=sr0" declin. ]
 -A 5    ; Number of aspects         [Change "5" to desired number      ]
 -c Plac ; House system              [Change "Plac" to desired system   ]
 _c3     ; 3D house boundaries       ["=c3" is 3D houses, "_c3" is 2D   ]
 _k      ; Ansi color text           ["=k" is color, "_k" is monochrome ]
-:d 48   ; Searching divisions       [Change "48" to desired divisions  ]
 _b0     ; Print zodiac seconds      ["_b0" to minute, "=b0" to second  ]
 _b1     ; Print zodiac milliseconds ["_b1" to second, "=b1" to millisec]
+_b2     ; Don't display :00 seconds ["_b2" shows anyway, "=b2" skips   ]
 =b      ; Use ephemeris files       ["=b" uses them, "_b" doesn't      ]
 =0b     ; Disable old calculations  ["=0b" disables them, "_0b" allows ]
 _v0     ; Show average velocities   ["=v0" average, "_v0" does absolute]
 =v3 0   ; Wheel subdivision type    [Change "0" to desired subdivision ]
 :w 0    ; Wheel chart text rows     [Change "0" to desired wheel rows  ]
-:I 80   ; Text screen columns       [Change "80" to desired columns    ]
--YQ 0   ; Text screen scroll limit  [Change "24" or set to "0" for none]
-_sr0    ; Latitudes or declinations ["_sr0" shows lat., "=sr0" declin. ]
 :gs 0   ; Aspect orb type           ["0" +/-, "1" app/sep, "2" wax/wan ]
+:d 48   ; Searching divisions       [Change "48" to desired divisions  ]
+_5      ; Transits go to chart list ["=5" sets list, "_5" does nothing ]
+:I 80   ; Text screen columns       [Change "80" to desired columns    ]
+_I0     ; Interpret Sabian symbols  ["=I0" for Sabian, "_I0" for normal]
+-YQ 0   ; Text screen scroll limit  [Change "24" or set to "0" for none]
 _Ys     ; Use plane of solar system ["_Ys" is ecliptic, "=Ys" is solar ]
 _Yn     ; Which Nodes and Lilith    ["_Yn" shows mean, "=Yn" shows true]
 =Yu0    ; Show eclipse information  ["=Yu0" shows, "_Yu0" doesn't show ]
@@ -41,7 +44,7 @@ _Yv     ; European length units     ["_Yv" is imperial, "=Yv" is metric]
 _Yr     ; Show rounded positions    ["=Yr" rounds, "_Yr" doesn't       ]
 =YC     ; Smart cusp displays       ["=YC" is smart, "_YC" is normal   ]
 =YO     ; Smart copy and printing   ["=YO" does it smart, "_YO" doesn't]
-=Y8     ; Clip text to end of line  ["=Y8" clips, "_Y8" doesn't clip   ]
+_Y8     ; Clip text to end of line  ["=Y8" clips, "_Y8" doesn't clip   ]
 -Ya0    ; Input character encoding  [0-3 is Default, IBM, Latin-1, UTF8]
 _Yz1    ; Combine DST and time zone ["=Yz1" combines, "_Yz1" doesn't   ]
 -YP 0   ; Arabic part formula       ["1" is fixed, "0" checks if night ]
@@ -50,13 +53,16 @@ _Yz1    ; Combine DST and time zone ["=Yz1" combines, "_Yz1" doesn't   ]
 -Yw 0.0       ; Stationary movement threshold  [0.0 is never "S"]
 :pd 365.24219 ; Progression degrees per day    [365 is secondary]
 :pC 1.0       ; Progressed cusp movement ratio [1.0 is quotidian]
+:pO Sun       ; Solar arc based on this planet [-1 is fixed rate]
+_pc           ; Solar arc recalc based on MC   [=pc recalculates]
 
 
 ; FILE PATHS (-Yi1 through -Yi9):
-; For example, point -Yi1 to ephemeris dir, -Yi2 to chart files dir, etc.
+; For example, point -Yi1 to ephemeris dir, -Yi2 to font dir, etc.
 
 -Yi1 "ephem"
--Yi2 "source"
+-Yi2 "font"
+-Yi3 "source"
 
 
 ; DEFAULT RESTRICTIONS:
@@ -97,6 +103,7 @@ _Yz1    ; Combine DST and time zone ["=Yz1" combines, "_Yz1" doesn't   ]
 
 -YR7 0 1 1 0 1  ; Restrict rulerships: std, esoteric, hierarch, exalt, Ray
 -YRZ 0 0 0 0    ; Restrict angle events: rising, zenith, setting, nadir
+-YRp 1 1        ; Restrict prime vertical: vertex, antivertex
 
 
 ; DEFAULT ASPECT ORBS:
@@ -190,8 +197,9 @@ _Yz1    ; Combine DST and time zone ["=Yz1" combines, "_Yz1" doesn't   ]
 
 
 ; DEFAULT COLORS:
-; Black, White, Gray, LtGray, Red, Orange, Yellow, Green, Cyan, Blue, Purple,
-; Magenta, Maroon, DkGreen, DkCyan, DkBlue; Element, Ray, Star, Planet
+; Black, White, Gray, LtGray, Red, Maize, Yellow, Green, Cyan, Blue, Purple,
+; Magenta, Maroon, DkGreen, DkCyan, DkBlue; Element, Ray, Star, Planet;
+; DkGray, Orange, Pink, Brown, Indigo, Forest, Amber, Rose, Sky, Violet
 
 -YkO 0 10   Yel Ele Ele Ele Ele Ele Ele Ele Ele Ele Ele      ; Planet colors
 -YkO 11 21  Mag Mag Mag Mag Mag DkC DkC DkC DkC DkC DkC      ; Minor colors
@@ -204,12 +212,12 @@ _Yz1    ; Combine DST and time zone ["=Yz1" combines, "_Yz1" doesn't   ]
 -YkO 84 84  Sta                                              ; Fixed stars
 
 -YkA 1 5    Yel Blu Red Gre Cya          ; Major aspect colors
--YkA 6 11   Mag Mag Ora Ora DkC DkC      ; Minor aspect colors
+-YkA 6 11   Mag Mag Mai Mai DkC DkC      ; Minor aspect colors
 -YkA 12 18  DkC Mar Pur Pur Mar Mar Pur  ; Obscure aspect colors
 
 -YkC        Red Yel Gre Blu                      ; Element colors
--Yk7 1 7    Red Blu Gre Yel Ora Mag Pur          ; Ray colors
--Yk0 1 7    Red Ora Yel Gre Cya Blu Pur          ; Rainbow colors
+-Yk7 1 7    Red Ind For Yel Amb Ros Vio          ; Ray colors
+-Yk0 1 7    Red Mai Yel Gre Cya Blu Pur          ; Rainbow colors
 -Yk  0 8    Bla Whi LtG Gra Mar DkG DkC DkB Mag  ; Main colors
 
 
@@ -231,24 +239,44 @@ _Xr              ; Reverse background ["_Xr" is black, "=Xr" is white     ]
 :Xw 600 600      ; Default X and Y resolution (not including sidebar)
 :Xs 200          ; Character scale     [100-400]
 :XS 100          ; Graphics text scale [100-400]
+:XI0 25 1        ; Transparency % and background orientation [0-100, -1 to 1 ]
 =XQ              ; Square charts ["=XQ" forces square, "_XQ" allows rectangle]
+=XQ0             ; Autoscale     ["=XQ0" autoscales glyphs, "_XQ0" doesn't   ]
 =Xu              ; Chart border  ["=Xu" shows border, "_Xu" doesn't show     ]
 _Xx              ; Thicker lines ["=Xx" is thicker, "_Xx" is thinner         ]
 _Xx0             ; Antialiasing  ["=Xx0" is antialiased lines, "_Xx0" is not ]
 _XA              ; Glyphed lines ["=XA" glyphs on aspect lines, "_XA" doesn't]
 _XL              ; Show cities   ["=XL" shows them in charts, "_XL" doesn't  ]
 =Xv0             ; Show sidebar  ["=Xv0" shows on right edge, "_Xv0" doesn't ]
-:Xv 1            ; Wheel fill    ["0" for none, "1" for standard, "2" rainbow]
-:Xbw             ; Bitmap file type   ["Xbw" is Windows .bmp, "Xbn" is X11   ]
+:Xv 1            ; Wheel fill    ["0" none, "1" standard, "2" rainbow, etc.  ]
+:Xkv Aut         ; Wheel corners decoration color
+:Xbw             ; Bitmap file type   ["Xbw" is Windows .bmp, "Xbp" is .png  ]
 :YXG 111221      ; Glyphs for [Capricorn, Uranus, Pluto, Lilith, Vertex, Eris]
 :YXg 0           ; Aspect grid cells  ["0" for autodetect  ]
 :YXS 0.0         ; Orbit radius in AU ["0.0" for autodetect]
 :YXj 0           ; Orbit trail count
 :YX7 600         ; Esoteric Ray column influence width
-:YXf 000000      ; Fonts to use [text, signs, houses, planets, aspects, naks.]
+:YXx 0           ; Line thickness adjustment for vector formats
+:YXf #000000     ; Fonts to use [text, signs, houses, planets, aspects, naks.]
 :YXp 0           ; PostScript paper orientation ["-1" portrait, "1" landscape]
 :YXp0 8.5in 11in ; PostScript paper X and Y sizes
 
 _X               ; Graphics chart display ["_X" is text, "=X" is graphics]
+
+
+; MACROS:
+
+-M0 37 "_sr -RO -1 -Y1 Ear Ear -YXt '' ~d '' ~O '' ~C '' ~A '' ~q2 '' ~Q1 '' ~Q2 '' ~Xt '' -M30 '' '' '' '' ~1 '=a 0'"
+-M0 38 "_R Nor -Y1 Nor PluC ~C '=y ObjLon Add O_Asc Dec @x'"
+-M0 39 "~O 'If Lt Lat 0.0 =w Add @w 180.0' ~C 'If Lt Lat 0.0 =y Add @y 180.0' -YXt '\nSpecial: Southern Zodiac'"
+-M0 40 "=gp _g =sr0 =b0 _R Vul -YR0 1 1 -YR1 0 1 -YD Vul OOB ~O 'If Equ @v O_Vul Do =w 0.0 =x Oblique' ~d 'And Neq @u O_Vul Or Equ @w O_Vul Equ @v -5' =dm _X"
+-M0 41 "-R0 Sun Moo Mer Ven Mar Jup Sat -c Whole -YJ Mar Ari Sco -YJ Jup Sag Pis -YJ Sat Cap Aqu -YJ Ura 0 0 -YJ Nep 0 0 -YJ Plu 0 0"
+-M0 42 "~2 13 '-Ao Con 360 -Ao Opp 360' ~2 14 '-Ao Con ~@a -Ao Opp ~@b' -A 2 -YXa 0 ~Q1 '=a AspOrb A_Con =b AspOrb A_Opp Switch2 13' ~Q2 'Switch2 14' -~A '=c Neq _r 0 If And Equ @w A_Con Gt Abs Add LonDiff ObjLonN Mul @c 1 @v 90 LonDiff ObjLonN Mul @c 2 @x 90 @a =z -1 If And Equ @w A_Opp Gt Abs Add LonDiff ObjLonN Mul @c 1 @v 0 LonDiff ObjLonN Mul @c 2 @x 0 @b =z -1'"
+-M0 43 "-i2 __1 -r2 ~1 '=a Not @a =b ?: @a 180 0 =c Sub 2 @a =d AspCol @c' ~20 1 ';Antiscia;Contra-Antiscia' -M20 '' '-x -1 :Ys ~@b' '-x 1 :Ys 0' -YXt '\n\4Special: \c'"
+-M0 44 "-r2 -c Whole ~q2 'If Equ Context 1 =m JulianT If Equ Context 2 =n JulianT' ~Xt '=a Inc Mod Int Div Sub @n @m 365.24219 12 =b ObjCol Add O_Asc Dec @a' -YXt '\n\2Profection: House #\A' =X"
+-M0 45 "-r2 ~20 1 ';Sun;Ven;Mer;Moo;Sat;Jup;Mar;Nor;Sou' ~3 1 '10 8 13 9 11 12 7 3 2' ~3 27 '1 4 3 2 7 6 5 16 17' ~q2 'If Equ Context 1 =m JulianT If Equ Context 2 =n JulianT' ~Xt '=o Div Sub @n @m 365.24219 =p ?: Lt LonDiff ObjLon1 O_Asc ObjLon1 O_Sun 0 1 4 While Gt @o Var @p Do =o Sub @o Var @p =p Inc Mod @p 9 =q ?: Gt @p 7 @p Inc Mod Add Int Mul Div @o Var @p 7.0 Dec @p 7 = 0 ObjCol Var Add 26 @p' -YXt '\n\0Firdaria: \p / \q' =X"
+-M0 46 "_R For -r2 ~20 1 ';Ari;Tau;Gem;Can;Leo;Vir;Lib;Sco;Sag;Cap;Aqu;Pis' ~3 1 '15 8 20 25 19 20 8 15 12 27 30 12' ~q2 'If Equ Context 1 =m JulianT If Equ Context 2 =n JulianT' ~M 1 '=q Var @y While Gte @o Mul Var Var @y @x Do2 =o Sub @o Mul Var Var @y @x = @y ?: Lt Var @y 12 Inc Var @y 1 If Equ Var @y @q = @y Inc Mod Add Dec Var @y 6 12' ~Xt '=o Sub @n @m =s LonSign ObjLon1 O_For =x 360 =y %s Macro 1 =t @s =x 30 =y %t Macro 1 =u @t =x 2.5 =y %u Macro 1 =v @u =x Div @x 12 =y %v Macro 1 For %z 0 3 = Add 27 @z ObjCol Add O_Asc Dec Var Add %s @z' -YXt '\n\27Releasing L1: \s\n\28Releasing L2: \t\n\29Releasing L3: \u\n\30Releasing L4: \v' =X"
+-M0 47 "=Xr -Xv 6 :XI0 100 1 -YkO Ear Eas Ray Ray Ray Ray Ray Ray Ray Ray Ray Ray Ray LtG LtG LtG LtG LtG LtG LtG LtG LtG LtG LtG -YkO Vul Vul Ray -YkO Hyg Orc LtG LtG Ray Ray Ray Ray Ray Ray Ray :YXG 113221"
+-M0 48 "-M30 '-Y10 Ear Asc' '-Y10 Asc Asc' '-Y10 Sun Asc' '-Y1 Ear Ear' -i2 __1 -i3 __1 -r3 -c Whole _R Vul -YXt '\nSpecial: Triple Sun'"
 
 ; astrolog.as

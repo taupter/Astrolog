@@ -1,8 +1,8 @@
 /*
-** Astrolog (Version 7.80) File: extern.h
+** Astrolog (Version 8.00) File: extern.h
 **
 ** IMPORTANT NOTICE: Astrolog and all chart display routines and anything
-** not enumerated below used in this program are Copyright (C) 1991-2025 by
+** not enumerated below used in this program are Copyright (C) 1991-2026 by
 ** Walter D. Pullen (Astara@msn.com, http://www.astrolog.org/astrolog.htm).
 ** Permission is granted to freely use, modify, and distribute these
 ** routines provided these credits and notices remain unmodified with any
@@ -48,7 +48,7 @@
 ** Initial programming 8/28-30/1991.
 ** X Window graphics initially programmed 10/23-29/1991.
 ** PostScript graphics initially programmed 11/29-30/1992.
-** Last code change made 6/19/2025.
+** Last code change made 5/28/2026.
 */
 
 /*
@@ -211,7 +211,7 @@ extern CONST real rStarBrightMatrix[cStar+1], rStarData[cStar*6],
   lonCnstlZodiac[cSign+2];
 extern CONST char *szMindPartDef[objMax], *szDescDef[cSign+1],
   *szDesireDef[cSign+1], *szLifeAreaDef[cSign+1], *szInteractDef[cAspect+1],
-  *szThereforeDef[cAspect+1], *szModify[3][cAspect];
+  *szThereforeDef[cAspect+1], *szModify[3][cAspect], *szSabian[nDegMax];
 extern CONST char *szMindPart[objMax], *szDesc[cSign+1], *szDesire[cSign+1],
   *szLifeArea[cSign+1], *szInteract[cAspect+1], *szTherefore[cAspect+1];
 extern CONST StrLook rgObjName[], rgSystem[], rgAspectName[];
@@ -233,7 +233,10 @@ extern CONST int cSatellite[oPlu+1], nMooMap[6][8], rgobjHasMoons[cHasMoons];
 extern CONST AI ai[cPart];
 
 extern char *szWheel[cRing+1];
-extern CONST char *szColor[cColor+4], *szColorHTML[cColor];
+extern CONST char *szColor[cColor2+5];
+#ifndef GRAPH
+extern CONST KV rgbbmp[cColor2];
+#endif
 
 extern int rgObjRay[oNorm+1], rgSignRay[cSign+1], rgSignRay2[cSign+1][cRay+1],
   rgObjEso1[oNorm+1], rgObjEso2[oNorm+1], rgObjHie1[oNorm+1],
@@ -248,7 +251,7 @@ extern CONST char *szRayName[cRay+1], *szRayWill[cRay+1];
 #define FEqSzI(sz1, sz2) (NCompareSzI(sz1, sz2) == 0)
 #define RgAllocate(n, t, sz) ((t *)PAllocate((n) * sizeof(t), sz))
 #define FCloneSz(szSrc, pszDst) FCloneSzCore(szSrc, pszDst, fFalse)
-#define SzTime(h, m, s) SzTimeR(h, m, s, -1.0)
+#define SzTime(h, m, s) SzTimeR(h, m, s, -1)
 #define PrintAltitude(deg) PrintSz(SzAltitude(deg))
 #define FEqCI(ci1, ci2) (\
   ci1.mon == ci2.mon && ci1.day == ci2.day && ci1.yea == ci2.yea && \
@@ -292,12 +295,14 @@ extern void FormatR P((char *, real, int));
 extern KV KvBlend P((KV, KV, real));
 extern KV KvHue P((real));
 extern KV KvHue2 P((real));
+extern KI KiFromKv P((KV, flag));
 extern int Mod12 P((int));
 extern real DecToDeg P((real));
 extern real DegToDec P((real));
 extern real MinDistance P((real, real));
 extern real MinDifference P((real, real));
 extern real Midpoint P((real, real));
+extern real Midpoint2 P((real, real, real));
 extern real SphDistance P((real, real, real, real));
 extern void SphRatio P((real, real, real, real, real, real *, real *));
 extern char *Dignify P((int, int));
@@ -309,6 +314,7 @@ extern int DayOfWeek P((int, int, int));
 extern int AddDay P((int, int, int, int));
 extern void AddTime P((CI *, int, int));
 extern real GetOffsetCI P((CONST CI *));
+extern real AdjustTimeZone P((CI *, real, real));
 extern real GetOrb P((int, int, int));
 extern CONST char *SzAspect P((int));
 extern CONST char *SzAspectAbbrev P((int));
@@ -335,7 +341,7 @@ extern void ErrorArgv P((CONST char *));
 extern void ErrorSwitch P((CONST char *));
 extern flag FErrorSubswitch P((CONST char *, char, flag));
 extern void ErrorEphem P((CONST char *, long));
-extern void AnsiColor P((int));
+extern void AnsiColor P((KI));
 extern void PrintZodiac P((real));
 extern char ChRet P((real));
 extern char *SzZodiac P((real));
@@ -344,7 +350,7 @@ extern char *SzDegree P((real));
 extern char *SzDegree2 P((real));
 extern char *SzHMS P((int));
 extern char *SzDate P((int, int, int, int));
-extern char *SzTimeR P((int, int, int, real));
+extern char *SzTimeR P((int, int, int, int));
 extern char *SzTim P((real));
 extern char *SzZone P((real));
 extern char *SzOffset P((real, real, real));
@@ -352,6 +358,9 @@ extern char *SzLocation P((real, real));
 extern char *SzElevation P((real));
 extern char *SzTemperature P((real));
 extern char *SzLength P((real));
+extern char *SzColor P((KI));
+extern char *SzColor2 P((KI));
+extern CONST char *SzColorHTML P((KI));
 extern void GetTimeNow P((int *, int *, int *, real *, real, real));
 extern int NFromAltN P((int));
 extern char *SzProcessProgname P((char *));
@@ -363,6 +372,7 @@ extern int UTF8ToWch P((CONST uchar *, wchar *));
 extern int WchToUTF8 P((wchar, char *));
 extern wchar WchFromChLatin P((uchar));
 extern wchar WchFromChIBM P((uchar));
+extern int PchToWch P((CONST uchar *, wchar *));
 extern uchar ChLatinFromWch P((wchar));
 extern uchar ChIBMFromWch P((wchar));
 extern void UTF8ToLatinSz P((char *));
@@ -397,6 +407,7 @@ extern flag FProcessSwitchFile P((CONST char *, FILE *));
 extern flag FOutputData P((void));
 extern flag FOutputAAFFile P((void));
 extern flag FOutputQuickFile P((void));
+extern flag FOutputCalendarFile P((void));
 extern flag FOutputChartList P((void));
 #ifdef SWISSGRAPH
 extern flag FOutputDaedalusStar P((void));
@@ -429,6 +440,10 @@ extern flag GetJPLHorizons P((int,
 #define ObjCOB(i) (FBetween(i, oJup, oPlu) ? cobLo + ((i)-oJup) : (i))
 #define AdjustRestrictions() for (is.nObj = cObj; is.nObj >= 0 && \
   ignore[is.nObj] && ignore2[is.nObj] && force[is.nObj] == 0.0; is.nObj--);
+#define AdjustAspectCount() for (us.nAsp = cAspect; us.nAsp > 0 && \
+  ignorea[us.nAsp]; us.nAsp--);
+#define RgRules() (ignore7[rrStd] && ignore7[rrEso] && !ignore7[rrHie] ? \
+  rgSignHie1 : (ignore7[rrStd] && !ignore7[rrEso] ? rgSignEso1 : rules))
 
 extern CONST int rgnTermEgypt[cSign*2], rgnTermPtolemy[cSign*2];
 extern CONST char *szStarNameSwiss[cStar+1];
@@ -461,7 +476,8 @@ extern flag FAcceptAspect P((int, int, int));
 extern int GetAspect P((CONST real *, CONST real *, CONST real *,
   CONST real *, CONST real *, CONST real *, int, int, real *));
 extern int GetParallel P((CONST real *, CONST real *, CONST real *,
-  CONST real *, CONST real *, CONST real *, int, int, real *));
+  CONST real *, CONST real *, CONST real *, CONST real *, CONST real *,
+  int, int, real *));
 extern flag FCreateGrid P((flag));
 extern flag FCreateGridRelation P((flag));
 extern int NCheckEclipseSolar P((int, int, int, real *));
@@ -558,6 +574,8 @@ extern void PrintConstellations P((void));
 #endif
 extern void PrintOrbit P((void));
 extern int NCompareSzPart P((int, int));
+extern flag ComputeArabic P((int, real *, real *, real *, real *, real *,
+  real *));
 extern void DisplayArabic P((void));
 #ifdef GRAPH
 extern void DisplayKeysX P((void));
@@ -636,12 +654,12 @@ extern CONST char *rgEsoRayArea[5];
 #ifdef INTERPRET
 extern void FieldWord P((CONST char *));
 extern void InterpretGeneral P((void));
-extern void InterpretAspectGeneral P((void));
 extern void InterpretLocation P((void));
 extern void InterpretAspectCore P((int, int, int, int));
 extern void InterpretAspect P((int, int));
 extern void InterpretGrid P((void));
 extern void InterpretMidpoint P((int, int));
+extern void InterpretArabic P((int, real, real, real));
 extern void InterpretInDay P((int, int, int));
 extern void InterpretTransit P((int, int, int));
 extern void InterpretSynastry P((void));
@@ -669,6 +687,7 @@ extern flag FLoadZoneChanges P((FILE *, int, int));
 extern flag FLoadZoneLinks P((FILE *, int));
 extern flag DisplayAtlasLookup P((CONST char *, size_t, int *));
 extern flag DisplayAtlasNearby P((real, real, size_t, int *, flag));
+extern void AdjustTime P((int *, int *, int *, int *));
 extern flag DisplayTimezoneChanges P((int, size_t, CI *));
 extern real ZondefFromIzn P((int));
 #endif
@@ -686,8 +705,9 @@ extern int NExpGet P((int));
 extern real RExpGet P((int));
 extern flag ExpSetN P((int, int));
 extern flag ExpSetR P((int, real));
-extern flag ExpSetMacro P((int, char *));
-extern flag ExpSetString P((int, char *, flag));
+extern flag ExpSetMacro P((int, CONST char *));
+extern flag ExpSetString P((int, CONST char *, flag));
+extern flag ExpSetNums P((int, CONST char *));
 extern char *ExpGetString P((int));
 extern char *PchFormatExpression P((char *, int));
 extern char *PchFormatString P((char *, int));
@@ -704,7 +724,7 @@ extern GI gi;
 #ifdef X11
 extern XSizeHints hint;
 extern char xkey[];
-extern KV rgbind[cColor];
+extern KV rgbind[cColor2];
 extern KV fg, bg;
 #endif
 #ifdef WIN
@@ -716,8 +736,8 @@ extern WI wi;
 #endif
 extern char *szWheelX[cRing+1];
 
-extern CONST KV rgbbmpDef[cColor], rgbbmpDef2[cColor];
-extern KV rgbbmp[cColor];
+extern CONST KV rgbbmpDef[cColor2], rgbbmpDef2[cColor2];
+extern KV rgbbmp[cColor2], rgbbmpRay[cRay+2];
 extern KI kMainB[9], kRainbowB[cRainbow+1], kElemB[cElem], kAspB[cAspect+1],
   kObjB[objMax], kRayB[cRay+2];
 extern CONST char *rgszFontName[cFont], rgszFontAllow[6][cFont+1];
@@ -768,7 +788,8 @@ extern CONST char *szDrawObject[objMaxG], *szDrawObject2[objMaxG],
 
 #define DrawEdge(x1, y1, x2, y2) \
   DrawBox(x1, y1, x2, y2, gi.nScaleT, gi.nScaleT)
-#define DrawEdgeAll() DrawEdge(0, 0, gs.xWin-1-gs.fThick, gs.yWin-1-gs.fThick)
+#define DrawEdgeAll() DrawEdge(0, 0, \
+  gs.xWin-1-gs.fThick*gi.nScaleT, gs.yWin-1-gs.fThick*gi.nScaleT)
 #define DrawLine(x1, y1, x2, y2) DrawDash(x1, y1, x2, y2, 0)
 #define DrawClip(x1, y1, x2, y2, xl, yl, xh, yh, skip) \
   FDrawClip(x1, y1, x2, y2, xl, yl, xh, yh, skip, NULL, NULL)
@@ -780,12 +801,21 @@ extern CONST char *szDrawObject[objMaxG], *szDrawObject2[objMaxG],
 #define DrawCircle2(x, y, xr, yr) \
   DrawEllipse2((x)-(xr), (y)-(yr), (x)+(xr), (y)+(yr))
 
+#define DrawAspect2(asp, x, y, obj1, obj2) DrawAspect(asp + \
+  (NCheckEclipseAny(obj1, asp, obj2, NULL) > etNone)*cAspect2, x, y)
+
 extern void DrawColor P((KI));
 extern void DrawThick P((flag));
+#ifdef WIN
+extern void AdjustCoordinates P((int *, int *));
+#else
+#define AdjustCoordinates(px, py)
+#endif
 extern void DrawPoint P((int, int));
 extern void DrawSpot P((int, int));
 extern void DrawBlock P((int, int, int, int));
 extern void DrawBox P((int, int, int, int, int, int));
+extern flag DrawGlyph P((int, int, int, int, int));
 extern void WinClearScreen P((KI));
 extern void DrawClearScreen P((void));
 extern void DrawDash P((int, int, int, int, int));
@@ -827,29 +857,29 @@ extern KI KiCity P((int));
 #ifdef META
 // Macros to output the various metafile commands used.
 #define MetaRecord(S, R) MetaLong((long)(S)); MetaWord(R)
-#define MetaSelectObject(O) MetaRecord(4, 0x12D); MetaWord(O)
-#define MetaDeleteObject(O) MetaRecord(4, 0x1F0); MetaWord(O)
-#define MetaSaveDc() MetaRecord(3, 0x01E)
+#define MetaSelectObject(O) MetaRecord(4, 0x12d); MetaWord(O)
+#define MetaDeleteObject(O) MetaRecord(4, 0x1f0); MetaWord(O)
+#define MetaSaveDc() MetaRecord(3, 0x01e)
 #define MetaRestoreDc() MetaRecord(4, 0x127); MetaWord((word)-1)
-#define MetaWindowOrg(X, Y) MetaRecord(5, 0x20B); MetaWord(Y); MetaWord(X)
-#define MetaWindowExt(X, Y) MetaRecord(5, 0x20C); MetaWord(Y); MetaWord(X)
-#define MetaCreatePen(S, W, C) MetaRecord(8, 0x2FA); MetaWord(S); \
+#define MetaWindowOrg(X, Y) MetaRecord(5, 0x20b); MetaWord(Y); MetaWord(X)
+#define MetaWindowExt(X, Y) MetaRecord(5, 0x20c); MetaWord(Y); MetaWord(X)
+#define MetaCreatePen(S, W, C) MetaRecord(8, 0x2fa); MetaWord(S); \
   MetaWord(W); MetaWord(W); MetaLong(C)
-#define MetaCreateBrush(S, C) MetaRecord(7, 0x2FC); \
+#define MetaCreateBrush(S, C) MetaRecord(7, 0x2fc); \
   MetaWord(S); MetaLong(C); MetaWord(0 /* Not used */);
-#define MetaCreateFont(S, X, Y, C) MetaRecord(12+(S), 0x2FB); MetaWord(Y); \
+#define MetaCreateFont(S, X, Y, C) MetaRecord(12+(S), 0x2fb); MetaWord(Y); \
   MetaWord(X); MetaWord(0 /* Angle */); MetaWord(0 /* Not used */); \
   MetaWord(400 /* Normal Weight */); MetaWord(0 /* Italic, Underline */); \
   MetaWord(WFromBB(0 /* Strikeout */, C)); \
   MetaWord(WFromBB(4 /* TrueType */, 0 /* Clip */))
 #define MetaBkMode(M) MetaRecord(4, 0x102); MetaWord(M)
-#define MetaTextAlign(A) MetaRecord(4, 0x12E); MetaWord(A)
+#define MetaTextAlign(A) MetaRecord(4, 0x12e); MetaWord(A)
 #define MetaTextColor(C) MetaRecord(5, 0x209); MetaLong(C);
-#define MetaTextOut(X, Y, S) MetaRecord(7+((S)+1)/2, 0xA32); \
+#define MetaTextOut(X, Y, S) MetaRecord(7+((S)+1)/2, 0xa32); \
   MetaWord(Y); MetaWord(X); MetaWord(S); MetaWord(0 /* ETO */)
-#define MetaPoint(X, Y, C) MetaRecord(7, 0x41F); MetaLong(C); \
+#define MetaPoint(X, Y, C) MetaRecord(7, 0x41f); MetaLong(C); \
   MetaWord(Y); MetaWord(X);
-#define MetaRectangle(X1, Y1, X2, Y2) MetaRecord(7, 0x41B); \
+#define MetaRectangle(X1, Y1, X2, Y2) MetaRecord(7, 0x41b); \
   MetaWord(Y2); MetaWord(X2); MetaWord(Y1); MetaWord(X1)
 #define MetaEllipse(X1, Y1, X2, Y2) MetaRecord(7, 0x418); \
   MetaWord(Y2); MetaWord(X2); MetaWord(Y1); MetaWord(X1)
@@ -859,10 +889,13 @@ extern KI KiCity P((int));
   MetaWord(15 /* MFCOMMENT */); MetaWord(((S)-5)*2 /* Bytes in comment */);
 #endif // META
 
+#define AdjustTextScale() gi.nScaleText = gs.nScaleText/50; \
+  gi.nScaleTextT2 = gi.nScaleText * gi.nScaleT; \
+  gi.nScaleTextT = gi.nScaleTextT2 >> 1;
 #define WirePoint(x, y, z) WireLine(x, y, z, x, y, z)
 
 extern void BmpSetXY P((Bitmap *, int, int, KV));
-extern KV BmpGetXY P((Bitmap *, int, int));
+extern KV BmpGetXY P((CONST Bitmap *, int, int));
 extern void SetXY P((int, int, KI));
 extern KI GetXY P((int, int));
 extern KI BmGetXY P((int, int));
@@ -871,7 +904,9 @@ extern flag FLoadBmp P((CONST char *, Bitmap *, flag));
 extern void BmpCopyBlock P((CONST Bitmap *, int, int, int, int,
   Bitmap *, int, int, int, int));
 #ifdef WINANY
-extern void BmpCopyWin P((CONST Bitmap *, HDC, int, int));
+extern void BmpCopyToWin P((CONST Bitmap *, HDC, int, int));
+extern flag FBmpCopyFromWin P((Bitmap *, HDC, HBITMAP));
+extern flag FBmpShrinkToWin P((HDC, HBITMAP, HDC));
 #endif
 extern flag FBmpDrawBack P((Bitmap *));
 extern flag FBmpDrawMap P((void));
@@ -896,6 +931,9 @@ extern void MetaSz P((CONST char *));
 extern void MetaSelect P((void));
 extern void MetaInit P((void));
 extern void WriteMeta P((FILE *));
+extern CONST char *SvgColor P((KV));
+extern void SvgSetColor P((void));
+extern void SvgText P((CONST char *, int, int, int, int, int, flag));
 extern void WriteWire P((FILE *));
 extern void WireLine P((int, int, int, int, int, int));
 extern void WireGlobeCalc P((real, real, int *, int *, int *, int, real));
@@ -975,6 +1013,7 @@ extern flag FProper P((int));
 extern void FillSymbolRing P((real *, real));
 extern void FillSymbolRingM P((int, real *, real));
 extern void FillSymbolLine P((real *));
+extern flag EnumMoonsRing P((int *, int *, real *, int *, char *, flag));
 extern real PlaceInX P((real));
 extern real HousePlaceInX P((real, real));
 extern void XChartWheelRelation P((void));
@@ -1033,10 +1072,10 @@ extern char szFileName[cchSzMaxFile], szFileTitle[cchSzMaxFile], *szFileTemp;
 
 #define SetCheck(id, f) CheckDlgButton(hdlg, id, f)
 #define SetRadio(id, idLo, idHi) CheckRadioButton(hdlg, idLo, idHi, id)
-#define SetEdit(id, sz) SetDlgItemText(hdlg, id, (LPCSTR)sz)
+#define SetEdit(id, sz) SetDlgItemText(hdlg, id, (LPCSTR)(sz))
 #define SetEditN(id, n) SetDlgItemInt(hdlg, id, n, fTrue)
 #define SetList(id, sz) \
-  SendDlgItemMessage(hdlg, id, LB_ADDSTRING, 0, (LPARAM)(LPCSTR)sz)
+  SendDlgItemMessage(hdlg, id, LB_ADDSTRING, 0, (LPARAM)(LPCSTR)(sz))
 #define SetListN(id, sz, n, v) \
   v = SetListSz(hdlg, id, sz); \
   SendDlgItemMessage(hdlg, id, LB_SETITEMDATA, v, (LPARAM)n);
@@ -1057,6 +1096,7 @@ extern void SetRel P((int));
 extern void ProcessState P((void));
 extern int NWmCommand P((WORD));
 extern void API RedoMenu P((void));
+extern flag FEnsureFontInstalled P((int));
 extern flag FFilePaste P((void));
 extern flag API FRedraw P((void));
 extern flag FCreateDesktopIcon P((void));
@@ -1083,6 +1123,7 @@ extern flag API DlgOpenDir P((void));
 extern flag API DlgPrint P((void));
 extern flag API DlgAbortProc P((HDC, int));
 extern BOOL API DlgAbort P((HWND, uint, WPARAM, LPARAM));
+extern flag API DlgFile     P((HWND, uint, WORD, LONG));
 extern flag API DlgList     P((HWND, uint, WORD, LONG));
 extern flag API DlgCommand  P((HWND, uint, WORD, LONG));
 extern flag API DlgColor    P((HWND, uint, WORD, LONG));

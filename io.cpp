@@ -1,8 +1,8 @@
 /*
-** Astrolog (Version 7.80) File: io.cpp
+** Astrolog (Version 8.00) File: io.cpp
 **
 ** IMPORTANT NOTICE: Astrolog and all chart display routines and anything
-** not enumerated below used in this program are Copyright (C) 1991-2025 by
+** not enumerated below used in this program are Copyright (C) 1991-2026 by
 ** Walter D. Pullen (Astara@msn.com, http://www.astrolog.org/astrolog.htm).
 ** Permission is granted to freely use, modify, and distribute these
 ** routines provided these credits and notices remain unmodified with any
@@ -48,7 +48,7 @@
 ** Initial programming 8/28-30/1991.
 ** X Window graphics initially programmed 10/23-29/1991.
 ** PostScript graphics initially programmed 11/29-30/1992.
-** Last code change made 6/19/2025.
+** Last code change made 5/28/2026.
 */
 
 #include "astrolog.h"
@@ -74,6 +74,7 @@ FILE *FileOpen(CONST char *szFile, int nFileMode, char *szPath)
 {
   FILE *file;
   char szFileT[cchSzMax], szExe[cchSzMax], sz[cchSzMax], szMode[3], *pch;
+  CONST char *pch2;
 #ifdef ENVIRON
   char *env;
 #endif
@@ -170,11 +171,14 @@ FILE *FileOpen(CONST char *szFile, int nFileMode, char *szPath)
 #endif
 
     // Finally look in one of several compile time specified directories.
-    sprintf(sz, "%s%c%s", nFileMode == 0 ? DEFAULT_DIR :
-      (nFileMode == 1 ? CHART_DIR : EPHE_DIR), chDirSep, szFileT);
-    file = fopen(sz, szMode);
-    if (file != NULL)
-      goto LDone;
+    pch2 = (nFileMode == 0 ? DEFAULT_DIR :
+      (nFileMode == 1 ? CHART_DIR : EPHE_DIR));
+    if (FSzSet(pch2)) {
+      sprintf(sz, "%s%c%s", pch2, chDirSep, szFileT);
+      file = fopen(sz, szMode);
+      if (file != NULL)
+        goto LDone;
+    }
   }
 
   if (file == NULL && FOdd(nFileMode)) {
@@ -320,6 +324,8 @@ flag FOutputData(void)
     return FOutputAAFFile();
   else if (us.nWriteFormat == 'q')
     return FOutputQuickFile();
+  else if (us.nWriteFormat == 'c')
+    return FOutputCalendarFile();
 #ifdef SWISSGRAPH
   else if (us.nWriteFormat == 'x')
     return FOutputDaedalusStar();
@@ -437,8 +443,8 @@ flag FOutputData(void)
 }
 
 
-// Load an Astrological Exchange Format (AAF) file into the default set of
-// chart information, given a file name or a file handle.
+// Load an Astrological Exchange Format (AAF) file into the chart list, given
+// a file name or a file handle.
 
 flag FProcessAAFFile(CONST char *szFile, FILE *file)
 {
@@ -630,8 +636,8 @@ flag FOutputAAFFile(void)
 
 #define FZonDst(sz) ((sz)[1] == 'D' || (sz)[1] == 'W')
 
-// Load a Quick*Chart format file into the default set of chart information,
-// given a file name or a file handle.
+// Load a Quick*Chart format file into the chart list, given a file name or a
+// file handle.
 
 flag FProcessQuickFile(CONST char *szFile, FILE *file)
 {
@@ -724,7 +730,7 @@ flag FOutputQuickFile(void)
     goto LDone;
   }
 
-  iMax = (is.cci > 1 ? is.cci : 1);
+  iMax = Max(is.cci, 1);
   for (i = 0; i < iMax; i++) {
     pci = iMax <= 1 ? &ciMain : &is.rgci[i];
     if (!FBetween(pci->yea, -9999, 99999)) {
@@ -778,8 +784,8 @@ LDone:
 }
 
 
-// Load a Astrodatabank XML format file into the default set of chart
-// information, given a file name or a file handle.
+// Load an Astrodatabank XML format file into the chart list, given a file
+// name or a file handle.
 
 flag FProcessADBFile(CONST char *szFile, FILE *file)
 {
@@ -960,8 +966,8 @@ LDone:
 }
 
 
-// Load a Solar Fire chart export text file into the default set of chart
-// information, given a file name or a file handle.
+// Load a Solar Fire chart export text file into the chart list, given a file
+// name or a file handle.
 
 flag FProcessSFTextFile(CONST char *szFile, FILE *file)
 {
@@ -1096,6 +1102,162 @@ LDone:
 }
 
 
+// Load an iCalendar format file into the chart list, given a file name or a
+// file handle.
+
+flag FProcessCalendarFile(CONST char *szFile, FILE *file)
+{
+  char szLine[cchSzLine], *pch;
+  int nState = -1, hr, min, sec;
+  flag fHaveFile, fRet = fFalse;
+
+  fHaveFile = (file != NULL);
+  if (!fHaveFile) {
+    file = FileOpen(szFile, 0, NULL);
+    if (file == NULL)
+      goto LDone;
+  }
+  is.fileIn = file;
+
+  loop {
+    fgets(szLine, cchSzMax, file);
+    if (feof(file))
+      break;
+    for (pch = szLine; *pch; pch++)
+      ;
+    while (pch > szLine && pch[-1] <= ' ')
+      *(--pch) = chNull;
+
+    if (nState < 0) {
+      if (!FMatchSz("BEGIN:VEVENT", szLine))
+        continue;
+      nState = 0;
+      ciCore.nam = ciCore.loc = "";
+      continue;
+    }
+    if (FMatchSz("SUMMARY:", szLine))
+      ciCore.nam = SzClone(szLine + 8);
+    else if (FMatchSz("LOCATION:", szLine))
+      ciCore.loc = SzClone(szLine + 9);
+    else if (FMatchSz("DTSTART", szLine)) {
+      for (pch = szLine + 7; *pch && *pch != ':'; pch++)
+        ;
+      if (CchSz(pch) < 16)
+        continue;
+      pch++;
+      YY = (pch[0]-'0')*1000 + (pch[1]-'0')*100 + (pch[2]-'0')*10 +
+        (pch[3]-'0');
+      if (!FBetween(YY, 0, 9999))
+        continue;
+      pch += 4;
+      MM = (pch[0]-'0')*10 + (pch[1]-'0');
+      if (!FValidMon(MM))
+        continue;
+      pch += 2;
+      DD = (pch[0]-'0')*10 + (pch[1]-'0');
+      if (!FValidDay(DD, MM, YY))
+        continue;
+      pch += 3;
+      hr  = (pch[0]-'0')*10 + (pch[1]-'0');
+      min = (pch[2]-'0')*10 + (pch[3]-'0');
+      sec = (pch[4]-'0')*10 + (pch[5]-'0');
+      TT = HMS(hr, min, sec);
+      if (!FValidTim(TT))
+        continue;
+      if (pch[6] != chNull) {
+        SS = ZZ = 0;
+      } else {
+        SS = DstReal(ciDefa.dst); ZZ = ciDefa.zon;
+      }
+      nState = 1;
+    } else if (FMatchSz("END:VEVENT", szLine)) {
+      if (nState == 1) {
+        SS = 0;
+        OO = ciDefa.lon; AA = ciDefa.lat;
+        if (!FAppendCIList(&ciCore))
+          goto LDone;
+      }
+      nState = -1;
+    }
+  }
+
+  fRet = fTrue;
+LDone:
+  is.fileIn = NULL;
+  if (!fHaveFile)
+    fclose(file);
+  return fRet;
+}
+
+
+// Write the current chart information or current chart list to an iCalendar
+// format file, as indicated by the -oc switch.
+
+flag FOutputCalendarFile(void)
+{
+  char sz[cchSzMax];
+  CONST char *pch;
+  FILE *file = NULL;
+  int i, iMax, mon, day, yea;
+  real tim;
+  flag fRet = fFalse;
+  CI *pci, ciT;
+
+  if (us.fNoWrite)
+    goto LDone;
+  file = fopen(is.szFileOut, "w");  // Create and open the file for output.
+  if (file == NULL) {
+    sprintf(sz, "ICalendar file '%s' can not be created.", is.szFileOut);
+    PrintError(sz);
+    goto LDone;
+  }
+
+  GetTimeNow(&mon, &day, &yea, &tim, 0, 0);
+  fprintf(file, "BEGIN:VCALENDAR\n");
+  fprintf(file, "VERSION:2.0\n");
+  fprintf(file, "PRODID:astrolog.org\n");
+  fprintf(file, "CALSCALE:GREGORIAN\n");
+
+  iMax = Max(is.cci, 1);
+  for (i = 0; i < iMax; i++) {
+    pci = iMax <= 1 ? &ciMain : &is.rgci[i];
+    if (!FBetween(pci->yea, -999, 9999)) {
+      PrintWarning("Can't save this chart to iCalendar format because the "
+        "Year field is more than 4 characters long.");
+      goto LDone;
+    }
+    fprintf(file, "BEGIN:VEVENT\n");
+    pch = FSzSet(pci->nam) ? pci->nam : "Astrolog chart";
+    fprintf(file, "SUMMARY:%s\n", pch);
+    fprintf(file, "DESCRIPTION:%s\\nhttp://www.astrolog.org/astrolog.htm\n",
+      pch);
+    fprintf(file, "LOCATION:%s\n",
+      FSzSet(pci->loc) ? pci->loc : "Default location");
+    ciT = *pci; ciT.tim += rSmall;
+    AdjustTimeZone(&ciT, 0, 0);
+    sprintf(sz, "%04d%02d%02dT%02d%02d%02dZ",
+      ciT.yea, ciT.mon, ciT.day, (int)ciT.tim, (int)(RFract(ciT.tim)*60.0),
+      (int)(RFract(ciT.tim)*3600.0) % 60);
+    fprintf(file, "DTSTART:%s\n", sz);
+    fprintf(file, "DTEND:%s\n", sz);
+    sprintf(sz, "%04d%02d%02dT%02d%02d%02dZ",
+      yea, mon, day, (int)tim, (int)(RFract(tim)*60.0),
+      (int)(RFract(tim)*3600.0) % 60);
+    fprintf(file, "DTSTAMP:%s\n", sz);
+    fprintf(file, "UID:astrolog.org_%s_%d\n", sz, i);
+    fprintf(file, "URL:http://www.astrolog.org/astrolog.htm\n");
+    fprintf(file, "END:VEVENT\n");
+  }
+  fprintf(file, "END:VCALENDAR\n");
+
+  fRet = fTrue;
+LDone:
+  if (file != NULL)
+    fclose(file);
+  return fRet;
+}
+
+
 // Output the chart list in memory to an Astrolog chart list file. If the
 // chart list is empty, output a length zero list.
 
@@ -1141,10 +1303,10 @@ flag FOutputChartList()
 }
 
 
+#ifdef SWISSGRAPH
 // Output the extended star list (and asteroid list) in memory to a Daedalus
 // script file, which will set Daedalus' star background to their positions.
 
-#ifdef SWISSGRAPH
 flag FOutputDaedalusStar()
 {
   char sz[cchSzDef];
@@ -1213,7 +1375,7 @@ flag FOutputDaedalusStar()
 #define PrintFSz() PrintF(sz)
 #define PrintRSz(r, n) FormatR(sz, r, n); PrintF(sz)
 CONST char *szDegForm = "zhdn";
-CONST char *szTypSwiss[] = {"", "b", "O", "m", "j"};
+CONST char *szTypSwiss[] = {"", "b", "O", "m", "j", "A"};
 CONST char *szPntSwiss[] = {"", "n", "s", "p", "a"};
 
 // Take many of the user visible settings, and write them out to a new command
@@ -1226,10 +1388,12 @@ flag FOutputSettings()
   char sz[cchSzDef];
   FILE *file;
   int i;
-  flag f1, f2;
+  flag f1, f2, fAny;
 #ifdef SWISS
   int j;
-  flag fAny;
+#endif
+#ifdef WIN
+  char *pch;
 #endif
 
   if (us.fNoWrite)
@@ -1294,6 +1458,9 @@ flag FOutputSettings()
   sprintf(sz, ":s%c     ", szDegForm[us.nDegForm]); PrintFSz();
   PrintF(
     "; Zodiac display format     [\"z\" is sign, \"d\" is 0-360 deg, etc]\n");
+  sprintf(sz, "%csr0    ", ChDashF(us.fEquator2)); PrintFSz();
+  PrintF(
+    "; Latitudes or declinations [\"_sr0\" shows lat., \"=sr0\" declin. ]\n");
   sprintf(sz, "-A %d    ", us.nAsp); PrintFSz();
   PrintF(
     "; Number of aspects         [Change \"5\" to desired number      ]\n");
@@ -1308,15 +1475,15 @@ flag FOutputSettings()
   sprintf(sz, "%ck      ", ChDashF(us.fAnsiColor)); PrintFSz();
   PrintF(
     "; Ansi color text           [\"=k\" is color, \"_k\" is monochrome ]\n");
-  sprintf(sz, ":d %d   ", us.nDivision); PrintFSz();
-  PrintF(
-    "; Searching divisions       [Change \"48\" to desired divisions  ]\n");
   sprintf(sz, "%cb0     ", ChDashF(us.fSeconds)); PrintFSz();
   PrintF(
     "; Print zodiac seconds      [\"_b0\" to minute, \"=b0\" to second  ]\n");
   sprintf(sz, "%cb1     ", ChDashF(us.fSecond1K)); PrintFSz();
   PrintF(
     "; Print zodiac milliseconds [\"_b1\" to second, \"=b1\" to millisec]\n");
+  sprintf(sz, "%cb2     ", ChDashF(us.fSecondHide)); PrintFSz();
+  PrintF(
+    "; Don't display :00 seconds [\"_b2\" shows anyway, \"=b2\" skips   ]\n");
   sprintf(sz, "%cb      ", ChDashF(us.fEphemFiles)); PrintFSz();
   PrintF(
     "; Use ephemeris files       [\"=b\" uses them, \"_b\" doesn't      ]\n");
@@ -1332,18 +1499,24 @@ flag FOutputSettings()
   sprintf(sz, ":w %d    ", us.nWheelRows); PrintFSz();
   PrintF(
     "; Wheel chart text rows     [Change \"0\" to desired wheel rows  ]\n");
-  sprintf(sz, ":I %d   ", us.nScreenWidth); PrintFSz();
-  PrintF(
-    "; Text screen columns       [Change \"80\" to desired columns    ]\n");
-  sprintf(sz, "-YQ %d   ", us.nScrollRow); PrintFSz();
-  PrintF(
-    "; Text screen scroll limit  [Change \"24\" or set to \"0\" for none]\n");
-  sprintf(sz, "%csr0    ", ChDashF(us.fEquator2)); PrintFSz();
-  PrintF(
-    "; Latitudes or declinations [\"_sr0\" shows lat., \"=sr0\" declin. ]\n");
   sprintf(sz, ":gs %d   ", us.nAppSep); PrintFSz();
   PrintF("; Aspect orb type           "
     "[\"0\" +/-, \"1\" app/sep, \"2\" wax/wan ]\n");
+  sprintf(sz, ":d %d   ", us.nDivision); PrintFSz();
+  PrintF(
+    "; Searching divisions       [Change \"48\" to desired divisions  ]\n");
+  sprintf(sz, "%c5      ", ChDashF(us.fListAuto)); PrintFSz();
+  PrintF(
+    "; Transits go to chart list [\"=5\" sets list, \"_5\" does nothing ]\n");
+  sprintf(sz, ":I %d   ", us.nScreenWidth); PrintFSz();
+  PrintF(
+    "; Text screen columns       [Change \"80\" to desired columns    ]\n");
+  sprintf(sz, "%cI0     ", ChDashF(us.fSabian)); PrintFSz();
+  PrintF(
+    "; Interpret Sabian symbols  [\"=I0\" for Sabian, \"_I0\" for normal]\n");
+  sprintf(sz, "-YQ %d   ", us.nScrollRow); PrintFSz();
+  PrintF(
+    "; Text screen scroll limit  [Change \"24\" or set to \"0\" for none]\n");
   sprintf(sz, "%cYs     ", ChDashF(us.fSidereal2)); PrintFSz();
   PrintF(
     "; Use plane of solar system [\"_Ys\" is ecliptic, \"=Ys\" is solar ]\n");
@@ -1395,9 +1568,14 @@ flag FOutputSettings()
     us.rProgDay); PrintFSz();
   PrintF(":pC "); FormatR(sz, us.rProgCusp, 5); PrintFSz();
   PrintF("       ; Progressed cusp movement ratio [1.0 is quotidian]\n");
+  sprintf(sz, ":pO %3.3s", us.objProgArc >= 0 ? szObjName[us.objProgArc] :
+    "Non"); PrintFSz();
+  PrintF("       ; Solar arc based on this planet [-1 is fixed rate]\n");
+  sprintf(sz, "%cpc", ChDashF(us.fProgRAMC)); PrintFSz();
+  PrintF("           ; Solar arc recalc based on MC   [=pc recalculates]\n");
 
   PrintF("\n\n; FILE PATHS (-Yi1 through -Yi9):\n; For example, "
-    "point -Yi1 to ephemeris dir, -Yi2 to chart files dir, etc.\n\n");
+    "point -Yi1 to ephemeris dir, -Yi2 to font dir, etc.\n\n");
   for (i = 0; i < 10; i++)
     if (FSzSet(us.rgszPath[i])) {
       sprintf(sz, "-Yi%d \"%s\"\n", i, us.rgszPath[i]); PrintFSz();
@@ -1462,9 +1640,12 @@ flag FOutputSettings()
     SzNumF(us.fIgnoreAlt0), SzNumF(us.fIgnoreDisequ)); PrintFSz();
   PrintF("-YR7 ");
   for (i = 0; i < rrMax; i++) PrintF(SzNumF(ignore7[i]));
-  PrintF(" ; Restrict rulerships: std, esoteric, hierarch, exalt, Ray\n-YRZ ");
-  for (i = 0; i < arMax; i++) PrintF(SzNumF(ignorez[i]));
-  PrintF("   ; Restrict angle events: rising, zenith, setting, nadir\n\n\n");
+  PrintF(
+    " ; Restrict rulerships: std, esoteric, hierarch, exalt, Ray\n-YRZ ");
+  for (i = 0; i < arDir; i++) PrintF(SzNumF(ignorez[i]));
+  PrintF("   ; Restrict angle events: rising, zenith, setting, nadir\n-YRp ");
+  PrintF(SzNumF(ignorez[arVer])); PrintF(SzNumF(ignorez[arAnt]));
+  PrintF("       ; Restrict prime vertical: vertex, antivertex\n\n\n");
 
   PrintF("; DEFAULT ASPECT ORBS:\n"
     ";  1- 5: Con Opp Squ Tri Sex\n"
@@ -1491,7 +1672,7 @@ flag FOutputSettings()
   PrintF("              ; Uranians\n-YAm 43 51  ");
   for (i = 43; i <= 51; i++) { PrintF(" "); PrintRSz(rObjOrb[i], -306); }
   PrintF("              ; Dwarfs\n-YAm 84 84  ");
-  sprintf(sz, "%4.0f", rObjOrb[52]); PrintFSz();
+  sprintf(sz, "%4.0f", rObjOrb[84]); PrintFSz();
   PrintF("                                              ; Fixed stars\n");
 
   PrintF("\n; DEFAULT PLANET ASPECT ORB ADDITIONS:\n\n-YAd 0 10   ");
@@ -1505,7 +1686,7 @@ flag FOutputSettings()
   PrintF("        ; Uranians\n-YAd 43 51  ");
   for (i = 43; i <= 51; i++) { PrintF(" "); PrintRSz(rObjAdd[i], -6); }
   PrintF("        ; Dwarfs\n-YAd 84 84  ");
-  sprintf(sz, " %.0f", rObjAdd[52]); PrintFSz();
+  sprintf(sz, " %.0f", rObjAdd[84]); PrintFSz();
   PrintF("                        ; Fixed stars\n\n\n");
 
   PrintF("; DEFAULT INFLUENCES:\n\n-Yj 0 10   ");
@@ -1589,59 +1770,60 @@ flag FOutputSettings()
   PrintF("                 ; Dwarfs\n\n\n");
 
   PrintF("; DEFAULT COLORS:\n; Black, White, Gray, LtGray, "
-    "Red, Orange, Yellow, Green, Cyan, Blue, Purple,\n"
+    "Red, Maize, Yellow, Green, Cyan, Blue, Purple,\n"
     "; Magenta, Maroon, DkGreen, DkCyan, DkBlue; "
-    "Element, Ray, Star, Planet\n"
-    "\n-YkO 0 10  ");
+    "Element, Ray, Star, Planet;\n"
+    "; DkGray, Orange, Pink, Brown, Indigo, Forest, Amber, Rose, Sky, Violet"
+    "\n\n-YkO 0 10  ");
   for (i = 0; i <= 10; i++)
-    { sprintf(sz, " %.3s", szColor[kObjU[i]]); PrintFSz(); }
+    { sprintf(sz, " %s", SzColor2(kObjU[i])); PrintFSz(); }
   PrintF("      ; Planet colors\n-YkO 11 21 ");
   for (i = 11; i <= 21; i++)
-    { sprintf(sz, " %.3s", szColor[kObjU[i]]); PrintFSz(); }
+    { sprintf(sz, " %s", SzColor2(kObjU[i])); PrintFSz(); }
   PrintF("      ; Minor colors\n-YkO 22 33 ");
   for (i = 22; i <= 33; i++)
-    { sprintf(sz, " %.3s", szColor[kObjU[i]]); PrintFSz(); }
+    { sprintf(sz, " %s", SzColor2(kObjU[i])); PrintFSz(); }
   PrintF("  ; Cusp colors\n-YkO 34 42 ");
   for (i = 34; i <= 42; i++)
-    { sprintf(sz, " %.3s", szColor[kObjU[i]]); PrintFSz(); }
+    { sprintf(sz, " %s", SzColor2(kObjU[i])); PrintFSz(); }
   PrintF("              ; Uranian colors\n-YkO 43 51 ");
   for (i = 43; i <= 51; i++)
-    { sprintf(sz, " %.3s", szColor[kObjU[i]]); PrintFSz(); }
+    { sprintf(sz, " %s", SzColor2(kObjU[i])); PrintFSz(); }
   PrintF("              ; Dwarf colors\n-YkO 52 63 ");
   for (i = 52; i <= 63; i++)
-    { sprintf(sz, " %.3s", szColor[kObjU[i]]); PrintFSz(); }
+    { sprintf(sz, " %s", SzColor2(kObjU[i])); PrintFSz(); }
   PrintF("  ; Moons\n-YkO 64 75 ");
   for (i = 64; i <= 75; i++)
-    { sprintf(sz, " %.3s", szColor[kObjU[i]]); PrintFSz(); }
+    { sprintf(sz, " %s", SzColor2(kObjU[i])); PrintFSz(); }
   PrintF("  ; Moons\n-YkO 76 83 ");
   for (i = 76; i <= 83; i++)
-    { sprintf(sz, " %.3s", szColor[kObjU[i]]); PrintFSz(); }
+    { sprintf(sz, " %s", SzColor2(kObjU[i])); PrintFSz(); }
   PrintF("                  ; Moons\n-YkO 84 84 ");
-  sprintf(sz, " %.3s", szColor[kObjU[84]]); PrintFSz();
+  sprintf(sz, " %s", SzColor2(kObjU[84])); PrintFSz();
   for (i = 0; i < 46; i++) PrintF(" ");
   PrintF("; Fixed stars\n\n-YkA 1 5   ");
 
   for (i = 1; i <= 5; i++)
-    { sprintf(sz, " %.3s", szColor[kAspA[i]]); PrintFSz(); }
+    { sprintf(sz, " %s", SzColor2(kAspA[i])); PrintFSz(); }
   PrintF("          ; Major aspect colors\n-YkA 6 11  ");
   for (i = 6; i <= 11; i++)
-    { sprintf(sz, " %.3s", szColor[kAspA[i]]); PrintFSz(); }
+    { sprintf(sz, " %s", SzColor2(kAspA[i])); PrintFSz(); }
   PrintF("      ; Minor aspect colors\n-YkA 12 18 ");
   for (i = 12; i <= 18; i++)
-    { sprintf(sz, " %.3s", szColor[kAspA[i]]); PrintFSz(); }
+    { sprintf(sz, " %s", SzColor2(kAspA[i])); PrintFSz(); }
   PrintF("  ; Obscure aspect colors\n\n-YkC       ");
 
   for (i = eFir; i <= eWat; i++)
-    { sprintf(sz, " %.3s", szColor[kElemA[i]]); PrintFSz(); }
+    { sprintf(sz, " %s", SzColor2(kElemA[i])); PrintFSz(); }
   PrintF("                      ; Element colors\n-Yk7 1 7   ");
   for (i = 1; i <= cRay; i++)
-    { sprintf(sz, " %.3s", szColor[kRayA[i]]); PrintFSz(); }
+    { sprintf(sz, " %s", SzColor2(kRayA[i])); PrintFSz(); }
   PrintF("          ; Ray colors\n-Yk0 1 7   ");
   for (i = 1; i <= cRainbow; i++)
-    { sprintf(sz, " %.3s", szColor[kRainbowA[i]]); PrintFSz(); }
+    { sprintf(sz, " %s", SzColor2(kRainbowA[i])); PrintFSz(); }
   PrintF("          ; Rainbow colors\n-Yk  0 8   ");
   for (i = 0; i <= 8; i++)
-    { sprintf(sz, " %.3s", szColor[kMainA[i]]); PrintFSz(); }
+    { sprintf(sz, " %s", SzColor2(kMainA[i])); PrintFSz(); }
   PrintF("  ; Main colors\n\n\n");
 
 #ifdef SWISS
@@ -1706,9 +1888,15 @@ flag FOutputSettings()
   PrintF("; Character scale     [100-400]\n");
   sprintf(sz, ":XS %d          ", gs.nScaleText); PrintFSz();
   PrintF("; Graphics text scale [100-400]\n");
+  sprintf(sz, ":XI0 %d %d        ", (int)gs.rBackPct, gs.nBackOrient);
+  PrintFSz();
+  PrintF("; Transparency % and background orientation [0-100, -1 to 1 ]\n");
   sprintf(sz, "%cXQ              ", ChDashF(gs.fKeepSquare)); PrintFSz();
   PrintF(
     "; Square charts [\"=XQ\" forces square, \"_XQ\" allows rectangle]\n");
+  sprintf(sz, "%cXQ0             ", ChDashF(gs.fAutoScale)); PrintFSz();
+  PrintF(
+    "; Autoscale     [\"=XQ0\" autoscales glyphs, \"_XQ0\" doesn't   ]\n");
   sprintf(sz, "%cXu              ", ChDashF(gs.fBorder)); PrintFSz();
   PrintF(
     "; Chart border  [\"=Xu\" shows border, \"_Xu\" doesn't show     ]\n");
@@ -1729,11 +1917,14 @@ flag FOutputSettings()
     "; Show sidebar  [\"=Xv0\" shows on right edge, \"_Xv0\" doesn't ]\n");
   sprintf(sz, ":Xv %d            ", gs.nDecaFill); PrintFSz();
   PrintF(
-    "; Wheel fill    [\"0\" for none, \"1\" for standard, \"2\" rainbow]\n");
+    "; Wheel fill    [\"0\" none, \"1\" standard, \"2\" rainbow, etc.  ]\n");
+  sprintf(sz, ":Xkv %s         ", SzColor2(gs.kiDeca)); PrintFSz();
+  PrintF(
+    "; Wheel corners decoration color\n");
   sprintf(sz, ":Xb%c             ", gi.fBmp ? 'w' : ChUncap(gs.chBmpMode));
   PrintFSz();
   PrintF(
-    "; Bitmap file type   [\"Xbw\" is Windows .bmp, \"Xbn\" is X11   ]\n");
+    "; Bitmap file type   [\"Xbw\" is Windows .bmp, \"Xbp\" is .png  ]\n");
   sprintf(sz, ":YXG %06d      ", nGlyphAll); PrintFSz();
   PrintF("; Glyphs for [Capricorn, Uranus, Pluto, Lilith, Vertex, Eris]\n");
   sprintf(sz, ":YXg %d           ", gs.nGridCell); PrintFSz();
@@ -1744,16 +1935,84 @@ flag FOutputSettings()
   PrintF("; Orbit trail count\n");
   sprintf(sz, ":YX7 %d         ", gs.nRayWidth); PrintFSz();
   PrintF("; Esoteric Ray column influence width\n");
-  sprintf(sz, ":YXf %06d      ", gs.nFontAll); PrintFSz();
+  sprintf(sz, ":YXx %d           ", gs.nThickAdjust); PrintFSz();
+  PrintF("; Line thickness adjustment for vector formats\n");
+  sprintf(sz, ":YXf #%06x     ", gs.nFontAll); PrintFSz();
   PrintF("; Fonts to use [text, signs, houses, planets, aspects, naks.]\n");
+#ifdef PS
   sprintf(sz, ":YXp %d           ", gs.nOrient); PrintFSz();
   PrintF(
     "; PostScript paper orientation [\"-1\" portrait, \"1\" landscape]\n");
   sprintf(sz, ":YXp0 %s ", SzLength(gs.xInch)); PrintFSz();
   sprintf(sz, "%s ", SzLength(gs.yInch)); PrintFSz();
   PrintF("; PostScript paper X and Y sizes\n\n");
+#endif
   sprintf(sz, "%cX               ", ChDashF(us.fGraphics)); PrintFSz();
   PrintF("; Graphics chart display [\"_X\" is text, \"=X\" is graphics]\n");
+#endif
+  PrintF("\n\n");
+
+  PrintF("; MACROS:\n\n");
+  fAny = fFalse;
+  for (i = 0; i < is.cszMacro; i++)
+    if (is.rgszMacro != NULL && FSzSet(is.rgszMacro[i])) {
+      fAny = fTrue;
+      sprintf(sz, "-M0 %d \"", i); PrintFSz();
+      PrintF(is.rgszMacro[i]);
+      PrintF("\"\n");
+    }
+  if (!fAny)
+    PrintF("; [No macros defined]\n");
+
+#ifdef WIN
+  PrintF("\n\n");
+  PrintF("; WINDOWS MENUS:\n\n");
+  fAny = fFalse;
+  for (i = 0; i < cMacro; i++) {
+    if (!wi.rgfM[i])
+      continue;
+    fAny = fTrue;
+    sprintf(sz, "-WM %d \"", i+1); PrintFSz();
+    GetMenuString(wi.hmenu, cmdMacro01 + i, sz, cchSzDef, MF_BYCOMMAND);
+    for (pch = sz; *pch; pch++)
+      if (*pch == '\t') {
+        *pch = chNull;
+        break;
+      }
+    PrintFSz();
+    sprintf(sz, "\"\n"); PrintFSz();
+  }
+  for (i = 0; i < cMSub; i++) {
+    if (!wi.rgfME[i])
+      continue;
+    fAny = fTrue;
+    sprintf(sz, "-WM0 %d \"", i); PrintFSz();
+    GetMenuString(wi.hmenuEdit, i+2, sz, cchSzDef, MF_BYPOSITION);
+    PrintFSz();
+    sprintf(sz, "\"\n"); PrintFSz();
+  }
+  if (!fAny)
+    PrintF("; [No menus defined]\n");
+  PrintF("\n\n");
+
+  PrintF("; WINDOWS DEFAULTS:\n\n");
+  sprintf(sz, "-WN %4d ", wi.nTimerDelay); PrintFSz();
+  PrintF("; Animation update delay in milliseconds\n");
+  sprintf(sz, "-Wx %d    ", wi.nAntialias); PrintFSz();
+  PrintF("; Antialiasing line detail level "
+    "[\"1\" is simplest, \"12\" is nicest   ]\n");
+  sprintf(sz, "%cWn      ", ChDashF(wi.fNoUpdate)); PrintFSz();
+  PrintF("; Buffer redraws                 "
+    "[\"=Wn\" buffers, \"_Wn\" on screen    ]\n");
+  sprintf(sz, "%cWh      ", ChDashF(wi.fHourglass)); PrintFSz();
+  PrintF("; Hourglass cursor on redraw     "
+    "[\"=Wh\" has hourglass, \"_Wh\" doesn't]\n");
+  sprintf(sz, "%cWt      ", ChDashF(wi.fNoPopup)); PrintFSz();
+  PrintF("; Don't show popup messages      "
+    "[\"=Wt\" doesn't show, \"_Wt\" shows   ]\n");
+  sprintf(sz, "%cWb      ", ChDashF(wi.fBmpWindow)); PrintFSz();
+  PrintF("; Export bitmaps based on window "
+    "[\"=Wb\" from window, \"_Wb\" created  ]\n");
 #endif
 
   sprintf(sz, "\n; %s\n", DEFAULT_INFOFILE); PrintFSz();
@@ -1842,12 +2101,29 @@ LNext:
 
 int NFromSz(CONST char *sz)
 {
+  int n;
+  flag fBinary, fNegative;
+  CONST char *pch;
+
 #ifdef EXPRESS
   // If string starts with "~" then parse the rest as an AstroExpression.
   if (sz[0] == '~')
     return NParseExpression(sz+1);
 #endif
-  return atoi(sz);
+  if (sz[0] != '#')
+    return atoi(sz);
+  fBinary = (sz[1] == '#');
+  fNegative = (sz[1 + fBinary] == '-');
+
+  // Strings starting with "#" are considered hexadecimal numbers.
+  // Strings starting with "##" are considered binary numbers.
+  n = 0;
+  for (pch = sz+1+fBinary+fNegative; *pch > ' '; pch++)
+    n = fBinary ? ((n << 1) | (*pch == '1')) :
+      ((n << 4) | NHex(ChUncap(*pch)));
+  if (fNegative)
+    neg(n);
+  return n;
 }
 
 
@@ -1897,7 +2173,7 @@ int NParseSz(CONST char *szEntry, int pm)
       break;
     // Parse planets, e.g. "Jupiter" or "Jup" -> 6 for Jupiter.
     case pmObject:
-      ch3 = ChUncap(sz[3]);
+      ch3 = cch >= 3 ? ChUncap(sz[3]) : 0;
       for (i = 0; i <= cObj; i++) {
         if (FMatchSz(sz, szObjName[i]))
           return i;
@@ -1912,6 +2188,8 @@ int NParseSz(CONST char *szEntry, int pm)
       i = SzLookup(rgObjName, szEntry);
       if (i >= 0)
         return i;
+      if (!FNumCh(sz[0]))
+        return -1;
       break;
     // Parse aspects, e.g. "Conjunct" or "Con" -> 1 for the Conjunction.
     case pmAspect:
@@ -1947,7 +2225,7 @@ int NParseSz(CONST char *szEntry, int pm)
         if (FBetween(i, 1, cRay))
           return kRayA[i];
       }
-      for (i = 0; i < cColor+4; i++)
+      for (i = 0; i < cColor2+5; i++)
         if (FMatchSz(sz, szColor[i]))
           return i;
       for (i = 0; i < cElem; i++)
@@ -1959,8 +2237,12 @@ int NParseSz(CONST char *szEntry, int pm)
       for (i = 1; i <= cAspect; i++)
         if (FMatchSz(sz, szAspectAbbrev[i]))
           return kAspA[i];
-      if (!FNumCh(ch0))
-        return -1;
+      if (ch0 == '#' && CchSz(sz) == 7) {
+        for (n = 1; sz[n]; n += 2)
+          i = (i << 8) | (NHex(ChUncap(sz[n])) << 4) | NHex(ChUncap(sz[n+1]));
+          i = Rgb(RgbB(i), RgbG(i), RgbR(i));
+        return -i;
+      }
       break;
     // Parse RGB color values, e.g. "255,0,0" or "#ff0000" for Red.
     case pmRGB:
@@ -1987,9 +2269,7 @@ int NParseSz(CONST char *szEntry, int pm)
       return -1;
     }
   }
-  if (pm == pmObject && !FNumCh(sz[0]))
-    return -1;
-  n = atoi(sz);
+  n = NFromSz(sz);
 
   if (pm == pmYea) {
     // For years, process any "BCE" (or "BC.", "b.c.e", and variations) and
@@ -2067,6 +2347,7 @@ real RParseSz(CONST char *szEntry, int pm)
       sz++, cch--;
       ch = sz[0];
     }
+    is.fZoneMeridian = fMeridian;
     // Negate the value for an "E" in the middle somewhere (e.g. "5E30").
     for (i = 0; i < cch; i++) {
       chT = sz[i];
@@ -2257,6 +2538,7 @@ flag FInputData(CONST char *szFile)
   char sz[cchSzMax], ch, *pch;
   int i;
   real k, l, m;
+  flag fRet = fFalse;
 
   // If we are to read from the virtual file "nul" that means to leave the
   // chart information alone with whatever settings it may have already.
@@ -2320,7 +2602,7 @@ flag FInputData(CONST char *szFile)
 
   if (FEqSz(szFile, szTtyCore)) {
     file = is.S; is.S = stdout;
-    if (!us.fNoSwitches) {
+    if (!is.fNoSwitches) {
       // Temporarily disable an internal redirection of output to a file
       // because we always want user headers and prompts to be displayed.
 
@@ -2337,7 +2619,7 @@ flag FInputData(CONST char *szFile)
       1, 12, pmMon);
     DD = NInputRange("Enter day   for chart (e.g. '1' '31') ",
       1, DayInMonth(MM, 0), pmDay);
-    YY = NInputRange("Enter year  for chart (e.g. '2025')   ",
+    YY = NInputRange("Enter year  for chart (e.g. '2026')   ",
       -32000, 32000, pmYea);
     if (FBetween(YY, 0, 99)) {
       sprintf(sz,
@@ -2390,7 +2672,7 @@ flag FInputData(CONST char *szFile)
   if (file == NULL)
     return fFalse;
   if (!fgets(sz, cchSzMax, file))
-    return fFalse;
+    goto LDone;
   ch = sz[0];
   for (i = CchSz(sz); i > 0 && sz[i-1] < ' '; i--)
     ;
@@ -2402,35 +2684,42 @@ flag FInputData(CONST char *szFile)
 
   if (ch == '@') {
     if (!FProcessSwitchFile(szFile, file))
-      return fFalse;
+      goto LDone;
 
   // Read the chart parameters from an Astrological Exchange (AAF) file.
 
   } else if (ch == '#') {
     is.fHaveInfo = fTrue;
     if (!FProcessAAFFile(szFile, file))
-      return fFalse;
+      goto LDone;
 
   // Read the chart parameters from a Quick*Chart file.
 
   } else if (i == 100 || i == 101) {
     is.fHaveInfo = fTrue;
     if (!FProcessQuickFile(szFile, file))
-      return fFalse;
+      goto LDone;
 
   // Read the chart parameters from a Astrodatabank file.
 
   } else if (ch == '<') {
     is.fHaveInfo = fTrue;
     if (!FProcessADBFile(szFile, file))
-      return fFalse;
+      goto LDone;
 
   // Read the chart parameters from a Solar Fire export text file.
 
   } else if (ch == '\n') {
     is.fHaveInfo = fTrue;
     if (!FProcessSFTextFile(szFile, file))
-      return fFalse;
+      goto LDone;
+
+  // Read the chart parameters from an iCalendar file.
+
+  } else if (ch == 'B') {
+    is.fHaveInfo = fTrue;
+    if (!FProcessCalendarFile(szFile, file))
+      goto LDone;
 
   // Read the chart info from an older style -o list of seven numbers.
 
@@ -2444,7 +2733,7 @@ flag FInputData(CONST char *szFile)
     if (!FValidMon(MM) || !FValidDay(DD, MM, YY) || !FValidYea(YY) ||
       !FValidTim(TT) || !FValidZon(ZZ) || !FValidLon(OO) || !FValidLat(AA)) {
       PrintWarning("Values in old style chart info file are out of range.");
-      return fFalse;
+      goto LDone;
     }
     ciCore.nam = ciCore.loc = "";
     if (!us.fWriteOld) {
@@ -2518,10 +2807,13 @@ flag FInputData(CONST char *szFile)
       "The chart info file is not in any valid format (character %d).",
       (int)ch);
     PrintWarning(sz);
-    return fFalse;
+    goto LDone;
   }
+
+  fRet = fTrue;
+LDone:
   fclose(file);
-  return fTrue;
+  return fRet;
 }
 
 

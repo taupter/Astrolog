@@ -1,8 +1,8 @@
 /*
-** Astrolog (Version 7.80) File: xscreen.cpp
+** Astrolog (Version 8.00) File: xscreen.cpp
 **
 ** IMPORTANT NOTICE: Astrolog and all chart display routines and anything
-** not enumerated below used in this program are Copyright (C) 1991-2025 by
+** not enumerated below used in this program are Copyright (C) 1991-2026 by
 ** Walter D. Pullen (Astara@msn.com, http://www.astrolog.org/astrolog.htm).
 ** Permission is granted to freely use, modify, and distribute these
 ** routines provided these credits and notices remain unmodified with any
@@ -48,7 +48,7 @@
 ** Initial programming 8/28-30/1991.
 ** X Window graphics initially programmed 10/23-29/1991.
 ** PostScript graphics initially programmed 11/29-30/1992.
-** Last code change made 6/19/2025.
+** Last code change made 5/28/2026.
 */
 
 #include "astrolog.h"
@@ -98,7 +98,7 @@ CONST uchar icon_bits[] = {
 ******************************************************************************
 */
 
-// Set up the color palette of RGB values used by the program for its 16 main
+// Set up the color palette of RGB values used by the program for its main
 // color indexes. There's a default palette of bright colors used with black
 // backgrounds, and an optional set of adjusted colors that looks better with
 // white backgrounds. Also, if the user customizes a palette slot with the
@@ -111,7 +111,7 @@ void InitColorPalette(int n)
 
   rgbbmpNew = (n < 1 || !gs.fAltPalette ? rgbbmpDef : rgbbmpDef2);
   rgbbmpOld = (n < 1 || !gs.fAltPalette ? rgbbmpDef2 : rgbbmpDef);
-  for (i = 0; i < cColor; i++)
+  for (i = 0; i < cColor2; i++)
     if (n < 0 || rgbbmp[i] == rgbbmpOld[i])
       rgbbmp[i] = rgbbmpNew[i];
 }
@@ -125,6 +125,7 @@ void InitColorsX()
 {
   int i;
   flag fInverse = gs.fInverse;
+  KI ki;
 #ifdef X11
   char sz[cchSzDef];
   Colormap cmap;
@@ -137,7 +138,7 @@ void InitColorsX()
     // Allocate colors from the present X11 colormap. Given RGB color strings,
     // allocate these colors and determine their values.
 
-    for (i = 0; i < cColor; i++) {
+    for (i = 0; i < cColor2; i++) {
       kv = rgbbmp[i];
       sprintf(sz, "#%02x%02x%02x", RgbR(kv), RgbG(kv), RgbB(kv));
       XParseColor(gi.disp, cmap, sz, &xcol);
@@ -173,6 +174,17 @@ void InitColorsX()
     kObjB[i]     = gs.fColor ? kObjA[i]     : gi.kiOn;
   for (i = 0; i <= cRay+1; i++)
     kRayB[i]     = gs.fColor ? kRayA[i]     : gi.kiOn;
+
+  // Compute RGB colors to use for each of the Seven Rays.
+  for (i = 1; i <= cRay+1; i++) {
+    ki = kRayB[i];
+    if (i == 2 && ki == kIndigo && rgbbmp[ki] == rgbbmpDef[ki])
+      rgbbmpRay[i] = rgbbmpDef2[ki];
+    else if (i == 4 && ki == kYellow && rgbbmp[ki] == rgbbmpDef2[ki])
+      rgbbmpRay[i] = rgbbmpDef[ki];
+    else
+      rgbbmpRay[i] = rgbbmp[ki];
+  }
 }
 
 
@@ -184,7 +196,7 @@ LRESULT API WndProcWCLI(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
 {
   HDC hdc;
   HPEN hpen, hpenOld;
-  int x, y;
+  int x, y, n;
 
   wi.hwnd = hwnd;
   switch (wMsg) {
@@ -248,7 +260,7 @@ LRESULT API WndProcWCLI(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
 
     // Alt+click on a world map chart means relocate the chart there.
     if (wMsg == WM_LBUTTONDOWN && GetKeyState(VK_MENU) < 0) {
-      if (fMap && !gs.fConstel && !gs.fMollewide) {
+      if (fMap && !gs.fConstel && !gs.fMollweide) {
         Lon = rDegHalf -
           Mod((real)(x-gi.xOffset) / (real)gs.xWin*rDegMax - gs.rRot);
         if (Lon < -rDegHalf)
@@ -267,8 +279,8 @@ LRESULT API WndProcWCLI(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
       break;
     }
     hdc = GetDC(hwnd);
-    hpen = (HPEN)CreatePen(PS_SOLID, !gs.fThick ? 0 : 2,
-      (COLORREF)rgbbmp[gi.kiPen]);
+    n = (!gs.fThick ? 0 : 2) + gs.nThickAdjust;
+    hpen = (HPEN)CreatePen(PS_SOLID, Max(n, 0), (COLORREF)KvFromKi(gi.kiPen));
     hpenOld = (HPEN)SelectObject(hdc, hpen);
 
     // Ctrl+click means draw a rectangle. Ctrl+Shift+click does ellipse.
@@ -291,7 +303,7 @@ LRESULT API WndProcWCLI(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
 
     // A simple click means set a pixel and remember that location.
     } else {
-      SetPixel(hdc, x, y, (COLORREF)rgbbmp[gi.kiPen]);
+      SetPixel(hdc, x, y, (COLORREF)KvFromKi(gi.kiPen));
       wi.xMouse = x; wi.yMouse = y;
     }
     SelectObject(hdc, hpenOld);
@@ -375,14 +387,23 @@ void BeginX()
   if (wi.fChartWindow && (wi.xClient != gs.xWin ||
     wi.yClient != gs.yWin) && wi.hdcPrint == hdcNil)
     ResizeWindowToChart();
-  gi.xOffset = NMultDiv(wi.xClient - gs.xWin, wi.xScroll, nScrollDiv);
-  gi.yOffset = NMultDiv(wi.yClient - gs.yWin, wi.yScroll, nScrollDiv);
-  SetWindowOrg(wi.hdc, -gi.xOffset, -gi.yOffset);
-  SetWindowExt(wi.hdc, wi.xClient, wi.yClient);
+  if (!wi.fSmoothZoom || gi.fFile) {
+    gi.xOffset = NMultDiv(wi.xClient - gs.xWin, wi.xScroll, nScrollDiv);
+    gi.yOffset = NMultDiv(wi.yClient - gs.yWin, wi.yScroll, nScrollDiv);
+    SetWindowOrg(wi.hdc, -gi.xOffset, -gi.yOffset);
+    SetWindowExt(wi.hdc, wi.xClient, wi.yClient);
+  } else {
+    gi.xOffset = NMultDiv(wi.xClient*wi.nScaleWin - gs.xWin, wi.xScroll,
+      nScrollDiv);
+    gi.yOffset = NMultDiv(wi.yClient*wi.nScaleWin - gs.yWin, wi.yScroll,
+      nScrollDiv);
+    SetWindowOrg(wi.hdc, -gi.xOffset, -gi.yOffset);
+    SetWindowExt(wi.hdc, wi.xClient*wi.nScaleWin, wi.yClient*wi.nScaleWin);
+  }
   SetMapMode(wi.hdc, MM_ANISOTROPIC);
   SelectObject(wi.hdc, GetStockObject(NULL_PEN));
   SelectObject(wi.hdc, GetStockObject(NULL_BRUSH));
-  if (!gs.fJetTrail || wi.hdcPrint != hdcNil)
+  if (!gs.fJetTrail || wi.nScaleWin > 1)
     PatBlt(wi.hdc, -gi.xOffset, -gi.yOffset, wi.xClient, wi.yClient,
       gs.fInverse ? WHITENESS : BLACKNESS);
   InitColorsX();
@@ -390,6 +411,7 @@ void BeginX()
 
 #ifdef WCLI
   WNDCLASS wndclass;
+
   if (!wi.fWndclass) {
     wi.fWndclass = fTrue;
     wi.hinst = GetModuleHandle(NULL);
@@ -534,8 +556,10 @@ void CommandLineX()
 
 void SquareX(int *x, int *y, flag fForce)
 {
-  if (!fForce && !fSquare)    // Unless really want to force a square, realize
-    return;                   // that some charts look better rectangular.
+  // Unless really want to force a square, realize that some charts look
+  // better rectangular.
+  if ((!fForce && !fSquare) || gi.nMode == gGrid || fMap)
+    return;
   if (*x > *y)
     *x = *y;
   else
@@ -1168,7 +1192,7 @@ void InteractX()
             inv(us.fPrimeVert);
             inv(us.fCalendarYear);
             inv(us.nEphemYears);
-            inv(gs.fMollewide);
+            inv(gs.fMollweide);
             gi.nMode = (gi.nMode == gWheel ? gHouse :
               (gi.nMode == gHouse ? gWheel : gi.nMode));
             fRedraw = fTrue;
@@ -1341,7 +1365,8 @@ int NProcessSwitchesX(int argc, char **argv, int pos,
     else if (ch1 == 'W') {
       ch1 = 'B';
       gi.fBmp = fTrue;
-    }
+    } else if (ch1 == 'P')
+      gi.fBmp = fTrue;
     if (FValidBmpmode(ch1))
       gs.chBmpMode = ch1;
     gs.ft = FSwitchF2(gs.ft == ftBmp) * ftBmp;
@@ -1373,18 +1398,19 @@ int NProcessSwitchesX(int argc, char **argv, int pos,
       ErrorArgv("XM");
       return tcError;
     }
-    if (ch1 == '0') {
-      gs.nFontAll = FSwitchF(gs.nFontAll > 0) * gi.nFontPrev;
-      gs.nFontTxt = gs.nFontAll / 100000;
-      gs.nFontSig = (gs.nFontAll / 10000) % 10;
-      gs.nFontHou = (gs.nFontAll / 1000) % 10;
-      gs.nFontObj = (gs.nFontAll / 100) % 10;
-      gs.nFontAsp = (gs.nFontAll / 10) % 10;
-      gs.nFontNak = gs.nFontAll % 10;
-    }
     gs.ft = FSwitchF2(gs.ft == ftWmf) * ftWmf;
 #endif
     break;
+
+#ifdef SVG
+  case 'V':
+    if (us.fNoWrite || is.fSzInteract) {
+      ErrorArgv("XV");
+      return tcError;
+    }
+    gs.ft = FSwitchF2(gs.ft == ftSVG) * ftSVG;
+    break;
+#endif
 
 #ifdef WIRE
   case '3':
@@ -1421,6 +1447,9 @@ int NProcessSwitchesX(int argc, char **argv, int pos,
 
   case 'I':
     if (ch1 == '0') {
+      SwitchF2(gs.fBackDraw);
+      if (fAnd)
+        break;
       if (FErrorArgc("XI0", argc, 2))
         return tcError;
       rT = RFromSz(argv[1]);
@@ -1494,14 +1523,15 @@ int NProcessSwitchesX(int argc, char **argv, int pos,
     if (FErrorValN("XS", !FValidScaleText(i), i, 0))
       return tcError;
     gs.nScaleText = i;
-    gi.nScaleText = gs.nScaleText/50;    // Refresh so changing -XS works
-    gi.nScaleTextT2 = gi.nScaleText * gi.nScaleT;
-    gi.nScaleTextT = gi.nScaleTextT2 >> 1;
+    AdjustTextScale();    // Refresh so changing -XS works
     darg++;
     break;
 
   case 'Q':
-    SwitchF(gs.fKeepSquare);
+    if (ch1 == '0')
+      SwitchF(gs.fAutoScale);
+    else
+      SwitchF(gs.fKeepSquare);
     break;
 
   case 'i':
@@ -1621,7 +1651,7 @@ int NProcessSwitchesX(int argc, char **argv, int pos,
     if (FErrorArgc("Xv", argc, 1))
       return tcError;
     i = NFromSz(argv[1]);
-    if (FErrorValN("Xv", !FBetween(i, 0, 3), i, 0))
+    if (FErrorValN("Xv", !FValidDecaFill(i), i, 0))
       return tcError;
     gs.nDecaFill = i;
     darg++;
@@ -1662,7 +1692,7 @@ int NProcessSwitchesX(int argc, char **argv, int pos,
     }
     gi.nMode = FSwitchF2(gi.nMode == gWorldMap) * gWorldMap;
     if (ch1 == '0')
-      SwitchF(gs.fMollewide);
+      SwitchF(gs.fMollweide);
     is.fHaveInfo |= gs.fAlt;
     break;
 
@@ -1723,14 +1753,26 @@ int NProcessSwitchesX(int argc, char **argv, int pos,
     break;
 #endif
 
-#ifdef ISG
   case 'k':
     if (FErrorArgc("Xk", argc, 1))
       return tcError;
-    gi.kiPen = NParseSz(argv[1], pmColor);
+    i = NParseSz(argv[1], pmColor);
+#ifdef ISG
+    if (ch1 != 'v') {
+      if (FErrorValN("Xk", !FValidColorA(i), i, 0))
+        return tcError;
+      gi.kiPen = i;
+    } else
+#endif
+    {
+      if (FErrorValN("Xkv", !FValidColorA(i) && i != kMax, i, 0))
+        return tcError;
+      gs.kiDeca = i;
+    }
     darg++;
     break;
 
+#ifdef ISG
   case 'n':
     if (ch1 == 'p') {
       SwitchF(gi.fPause);
@@ -1942,7 +1984,6 @@ int NProcessSwitchesRareX(int argc, char **argv, int pos,
         DeallocateP(gi.rgspace);
         gi.rgspace = NULL;
       }
-      gi.cspace = gi.ispace = 0;
     } else
       gs.zspace = i;
     darg++;
@@ -1990,6 +2031,13 @@ int NProcessSwitchesRareX(int argc, char **argv, int pos,
     darg++;
     break;
 
+  case 'x':
+    if (FErrorArgc("YXx", argc, 1))
+      return tcError;
+    gs.nThickAdjust = NFromSz(argv[1]);
+    darg++;
+    break;
+
   case 'W':
     gs.nTriangles = NFromSz(argv[1]);
     darg++;
@@ -2021,54 +2069,54 @@ int NProcessSwitchesRareX(int argc, char **argv, int pos,
     i = NFromSz(argv[1]);
     switch (ch1) {
     case 't':
-      if (FErrorValN("YXft", !FBetween(i, 0, 9) || rgszFontAllow[0][i] == '-',
-        i, 0))
+      if (FErrorValN("YXft", !FValidFont(0, i), i, 0))
         return tcError;
       gs.nFontTxt = i;
       break;
     case 's':
-      if (FErrorValN("YXfs", !FBetween(i, 0, 9) || rgszFontAllow[1][i] == '-',
-        i, 0))
+      if (FErrorValN("YXfs", !FValidFont(1, i), i, 0))
         return tcError;
       gs.nFontSig = i;
       break;
     case 'h':
-      if (FErrorValN("YXfh", !FBetween(i, 0, 9) || rgszFontAllow[2][i] == '-',
-        i, 0))
+      if (FErrorValN("YXfh", !FValidFont(2, i), i, 0))
         return tcError;
       gs.nFontHou = i;
       break;
     case 'o':
-      if (FErrorValN("YXfo", !FBetween(i, 0, 9) || rgszFontAllow[3][i] == '-',
-        i, 0))
+      if (FErrorValN("YXfo", !FValidFont(3, i), i, 0))
         return tcError;
       gs.nFontObj = i;
       break;
     case 'a':
-      if (FErrorValN("YXfa", !FBetween(i, 0, 9) || rgszFontAllow[4][i] == '-',
-        i, 0))
+      if (FErrorValN("YXfa", !FValidFont(4, i), i, 0))
         return tcError;
       gs.nFontAsp = i;
       break;
     case 'n':
-      if (FErrorValN("YXfn", !FBetween(i, 0, 9) || rgszFontAllow[5][i] == '-',
-        i, 0))
+      if (FErrorValN("YXfn", !FValidFont(5, i), i, 0))
         return tcError;
       gs.nFontNak = i;
       break;
     default:
-      if (FErrorValN("YXf", !FBetween(i, 0, 999999), i, 0))
+      if (FErrorValN("YXf", !FBetween(i, 0, 0xffffff), i, 0))
         return tcError;
-      gs.nFontTxt = i/100000;
-      gs.nFontSig = i/10000%10;
-      gs.nFontHou = i/1000%10;
-      gs.nFontObj = i/100%10;
-      gs.nFontAsp = i/10%10;
-      gs.nFontNak = i%10;
+      gs.nFontTxt = i/0x100000;
+      gs.nFontSig = i/0x10000 % 0x10;
+      gs.nFontHou = i/0x1000 % 0x10;
+      gs.nFontObj = i/0x100 % 0x10;
+      gs.nFontAsp = i/0x10 % 0x10;
+      gs.nFontNak = i%0x10;
+      if (!FValidFont(0, gs.nFontTxt)) gs.nFontTxt = 0;
+      if (!FValidFont(1, gs.nFontSig)) gs.nFontSig = 0;
+      if (!FValidFont(2, gs.nFontHou)) gs.nFontHou = 0;
+      if (!FValidFont(3, gs.nFontObj)) gs.nFontObj = 0;
+      if (!FValidFont(4, gs.nFontAsp)) gs.nFontAsp = 0;
+      if (!FValidFont(5, gs.nFontNak)) gs.nFontNak = 0;
       break;
     }
-    gs.nFontAll = gs.nFontTxt*100000 + gs.nFontSig*10000 +
-      gs.nFontHou*1000 + gs.nFontObj*100 + gs.nFontAsp*10 + gs.nFontNak;
+    gs.nFontAll = gs.nFontTxt*0x100000 + gs.nFontSig*0x10000 +
+      gs.nFontHou*0x1000 + gs.nFontObj*0x100 + gs.nFontAsp*0x10 + gs.nFontNak;
     if (gs.nFontAll != 0)
       gi.nFontPrev = gs.nFontAll;
     darg++;
@@ -2138,28 +2186,51 @@ int DetectGraphicsChartMode()
 
 flag FActionX()
 {
-  int i, n;
+  int i, n, nScaleAdjust = 1, nScaleSav, yAdd;
+  flag fAutoScaled = fFalse;
+#ifdef WIN
+  HDC hdcWin, hdcMem;
+  HBITMAP hbmp, hbmpOld;
+  int x, y, nScaleWin = 1;
+#endif
 
   gi.fFile = (gs.ft != ftNone);
-#ifdef PS
-  gi.fEps = !gs.fPSComplete;
-#endif
   if (gi.nMode == 0)
     gi.nMode = DetectGraphicsChartMode();
 
   gi.nScaleT = gs.ft == ftPS ? PSMUL : (gs.ft == ftWmf ? METAMUL :
-    (gs.ft == ftWire ? WIREMUL : 1));
+    (gs.ft == ftSVG ? SVGMUL : (gs.ft == ftWire ? WIREMUL : 1)));
 #ifdef WIN
   if (wi.hdcPrint != hdcNil)
-    gi.nScaleT = METAMUL;
+    wi.nScaleWin = gi.nScaleT = nScaleAdjust = METAMUL;
+  else if (wi.fSmoothZoom && (!gi.fFile ||
+    ((wi.fAutoSave && gs.ft == (!wi.fAutoSaveWire ? ftBmp : ftWire))))) {
+    wi.nScaleWin = gi.nScaleT = nScaleAdjust = nScaleWin = wi.nAntialias;
+    gs.xWin   *= wi.nScaleWin;  // Increase chart sizes and scales behind the
+    gs.yWin   *= wi.nScaleWin;  // scenes to make graphics look smoother.
+    gs.nScale *= wi.nScaleWin;
+  } else
+    wi.nScaleWin = 1;
 #endif
   gi.nScale = gs.nScale/100;
-  gi.nScaleText = gs.nScaleText/50;
-  gi.nScaleTextT2 = gi.nScaleText * gi.nScaleT;
-  gi.nScaleTextT = gi.nScaleTextT2 >> 1;
+  AdjustTextScale();
 
   // Determine the pixel size the graphics chart is to have.
+  // Also determine glyph scale to use, if -XQ0 in effect.
 
+  if (gi.nMode == gWheel || gi.nMode == gHouse || gi.nMode == gSector) {
+    if (gs.fAutoScale) {
+      // For wheels, scale glyphs based on size of chart.
+      n = gs.yWin / nScaleAdjust;
+      i = (n < 350 ? 1 : (n < 750 ? 2 : (n < 950 ? 3 : 4)));
+      i *= nScaleAdjust;
+      if (i != gi.nScale) {
+        fAutoScaled = fTrue;
+        nScaleSav = gs.nScale;
+        gi.nScale = i; gs.nScale = i*100;
+      }
+    }
+  }
   if (gi.nMode == gGrid) {
     if (us.nRel <= rcDual && us.fMidpoint && !us.fAspList)
       us.fGridMidpoint = fTrue;
@@ -2168,24 +2239,66 @@ flag FActionX()
     else
       for (gi.nGridCell = i = 0; i <= is.nObj; i++)
         gi.nGridCell += FProper(i);
+    yAdd = (yFont2*gi.nScaleText + 2)*gi.nScaleT;
+#ifdef WIN
+    if (gs.fAutoScale) {
+      // For aspect grids, scale chart/glyphs based on size of window.
+      n = nScaleAdjust;
+      for (i = n; i < MAXSCALE*20/100*n; i += n) {
+        x = y = (gi.nGridCell + (us.nRel <= rcDual))*CELLSIZE*(i+n) + 1;
+        if (gs.fText)
+          y += yAdd;
+        if (!(x <= wi.xClient*nScaleWin && y <= wi.yClient*nScaleWin))
+          break;
+      }
+      if (i != gi.nScale) {
+        fAutoScaled = fTrue;
+        nScaleSav = gs.nScale;
+        gi.nScale = i; gs.nScale = i*100;
+      }
+    }
+#endif
     gs.xWin = gs.yWin =
       (gi.nGridCell + (us.nRel <= rcDual))*CELLSIZE*gi.nScale + 1;
+    if (gs.fText)
+      gs.yWin += yAdd;
   } else if (gs.fKeepSquare && fSquare) {
 #ifdef WIN
     if (wi.hdcPrint == hdcNil) {
       if (fSidebar)
-        gs.xWin -= (SIDESIZE * gi.nScaleText) >> 1;
+        gs.xWin -= (SIDESIZE * gi.nScaleText * wi.nScaleWin) >> 1;
 #endif
       n = Min(gs.xWin, gs.yWin);
       gs.xWin = gs.yWin = n;
 #ifdef WIN
       if (fSidebar)
-        gs.xWin += (SIDESIZE * gi.nScaleText) >> 1;
+        gs.xWin += (SIDESIZE * gi.nScaleText * wi.nScaleWin) >> 1;
     }
 #endif
   } else if (fMap) {
+    yAdd = (yFont2*gi.nScaleText + 2)*gi.nScaleT;
+#ifdef WIN
+    if (gs.fAutoScale) {
+      // For maps, scale chart/glyphs based on size of window.
+      n = nScaleAdjust;
+      for (i = n; i < MAXSCALE*20/100*n; i += n) {
+        x = nDegMax*(i+n); y = nDegHalf*(i+n);
+        if (gs.fText)
+          y += yAdd;
+        if (!(x <= wi.xClient*nScaleWin && y <= wi.yClient*nScaleWin))
+          break;
+      }
+      if (i != gi.nScale) {
+        fAutoScaled = fTrue;
+        nScaleSav = gs.nScale;
+        gi.nScale = i; gs.nScale = i*100;
+      }
+    }
+#endif
     gs.xWin = nDegMax*gi.nScale;
     gs.yWin = nDegHalf*gi.nScale;
+    if (gs.fText)
+      gs.yWin += yAdd;
   }
 #ifdef WIN
   if (fSidebar)
@@ -2194,7 +2307,7 @@ flag FActionX()
 
   if (gi.fFile) {
     if (!BeginFileX())
-      if (gs.ft == ftPS) {
+      if (gs.ft == ftPS || gs.ft == ftSVG) {
         gs.ft = ftNone; gi.fFile = fFalse;
         return fFalse;
       }
@@ -2219,8 +2332,12 @@ flag FActionX()
       }
     }
 #ifdef PS
-    else if (gs.ft == ftPS)
+    else if (gs.ft == ftPS) {
       PsBegin();
+      gs.nScale *= PSMUL;  // Increase chart sizes and scales behind the
+      gs.xWin   *= PSMUL;  // scenes to make graphics look smoother.
+      gs.yWin   *= PSMUL;
+    }
 #endif
 #ifdef META
     else if (gs.ft == ftWmf) {
@@ -2233,6 +2350,21 @@ flag FActionX()
       gs.xWin   *= METAMUL;  // Increase chart sizes and scales behind the
       gs.yWin   *= METAMUL;  // scenes to make graphics look smoother.
       gs.nScale *= METAMUL;
+    }
+#endif
+#ifdef SVG
+    else if (gs.ft == ftSVG) {
+      gs.xWin   *= SVGMUL;  // Increase chart sizes and scales behind the
+      gs.yWin   *= SVGMUL;  // scenes to make graphics look smoother.
+      gs.nScale *= SVGMUL;
+      fprintf(gi.file, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+      fprintf(gi.file, "<svg xmlns=\"http://www.w3.org/2000/svg\" "
+        "viewBox=\"0 0 %d %d\">\n", gs.xWin, gs.yWin);
+      fprintf(gi.file, "<!-- %s %s -->\n", szAppName, szVersionCore);
+      n = SVGMUL*(1+gs.fThick) + gs.nThickAdjust;
+      fprintf(gi.file, "<g stroke-width=\"%d\" stroke-linecap=\"round\" "
+        "fill=\"none\" style=\"white-space:pre\">\n", Max(n, 1));
+      gi.kiSvgAct = kMax;
     }
 #endif
 #ifdef WIRE
@@ -2265,10 +2397,26 @@ flag FActionX()
       gs.xWin += (SIDESIZE * gi.nScaleText) >> 1;
     BeginX();
   }
-#endif // ISG
+#endif
 
-  if (gi.fFile || gs.fRoot)    // Go draw the graphic chart.
-    DrawChartX();
+  if (gi.fFile || gs.fRoot) {    // Go draw the graphic chart.
+#ifdef WIN
+    if (wi.fBmpWindow && gs.ft == ftBmp && gi.fBmp) {
+      // Create the bitmap by copying from the Windows screen.
+      hdcWin = GetDC(wi.hwnd);
+      hdcMem = CreateCompatibleDC(hdcWin);
+      hbmp = CreateCompatibleBitmap(hdcWin, wi.xClient, wi.yClient);
+      hbmpOld = (HBITMAP)SelectObject(hdcMem, hbmp);
+      BitBlt(hdcMem, 0, 0, wi.xClient, wi.yClient, hdcWin, 0, 0, SRCCOPY);
+      FBmpCopyFromWin(&gi.bmp, hdcMem, hbmp);
+      SelectObject(hdcMem, hbmpOld);
+      DeleteObject(hbmp);
+      DeleteDC(hdcMem);
+      ReleaseDC(wi.hwnd, hdcWin);
+    } else
+#endif
+      DrawChartX();
+  }
   if (gi.fFile) {    // Write bitmap to file if in that mode.
     EndFileX();
     if ((gs.ft == ftBmp && !gi.fBmp) || gs.ft == ftWmf || gs.ft == ftWire) {
@@ -2303,6 +2451,18 @@ flag FActionX()
 #endif
   }
 #endif // ISG
+  if (gs.ft == ftPS) {
+    gs.xWin /= PSMUL; gs.yWin /= PSMUL; gs.nScale /= PSMUL;
+  } else if (gs.ft == ftWmf) {
+    gs.xWin /= METAMUL; gs.yWin /= METAMUL; gs.nScale /= METAMUL;
+  } else if (gs.ft == ftSVG) {
+    gs.xWin /= SVGMUL; gs.yWin /= SVGMUL; gs.nScale /= SVGMUL;
+  } else if (gs.ft == ftWire) {
+    gs.xWin /= WIREMUL; gs.yWin /= WIREMUL; gs.nScale /= WIREMUL;
+  }
+  if (fAutoScaled) {
+    gs.nScale = nScaleSav; gi.nScale = gs.nScale/100;
+  }
   return fTrue;
 }
 #endif // GRAPH

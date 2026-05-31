@@ -1,8 +1,8 @@
 /*
-** Astrolog (Version 7.80) File: charts3.cpp
+** Astrolog (Version 8.00) File: charts3.cpp
 **
 ** IMPORTANT NOTICE: Astrolog and all chart display routines and anything
-** not enumerated below used in this program are Copyright (C) 1991-2025 by
+** not enumerated below used in this program are Copyright (C) 1991-2026 by
 ** Walter D. Pullen (Astara@msn.com, http://www.astrolog.org/astrolog.htm).
 ** Permission is granted to freely use, modify, and distribute these
 ** routines provided these credits and notices remain unmodified with any
@@ -48,7 +48,7 @@
 ** Initial programming 8/28-30/1991.
 ** X Window graphics initially programmed 10/23-29/1991.
 ** PostScript graphics initially programmed 11/29-30/1992.
-** Last code change made 6/19/2025.
+** Last code change made 5/28/2026.
 */
 
 #include "astrolog.h"
@@ -697,6 +697,24 @@ void ChartTransitSearch(flag fProg)
   CP cpA, cpB, cpN = cp0;
   CI ciSav, ciCast = ciSave, ciEvent;
 
+  // Print header row.
+
+  AnsiColor(kDkGrayA);
+  PrintSz("Transits during ");
+  if (!us.fInDayMonth) {
+    i = DayOfWeek(MonT, DayT, YeaT);
+    sprintf(sz, "%.3s %s", szDay[i], SzDate(MonT, DayT, YeaT, 3));
+  } else if (!us.fInDayYear)
+    sprintf(sz, "%.3s %d", szMonth[MonT], YeaT);
+  else if (us.nEphemYears <= 1)
+    sprintf(sz, "%d", YeaT);
+  else
+    sprintf(sz, "%d through %d (%d years)", YeaT, YeaT + us.nEphemYears - 1,
+      us.nEphemYears);
+  PrintSz(sz);
+  sprintf(sz, " (%s)\n", SzOffset(ZonT, DstT, LonT)); PrintSz(sz);
+  AnsiColor(kDefault);
+
   // Save away natal chart and initialize things.
 
 #ifdef GRAPH
@@ -1065,7 +1083,7 @@ void ChartTransitSearch(flag fProg)
 
 
 // Print a chart graphing transits over time. This covers both transit
-// to transit (-B switch) and transit to natal (-V switch). Each aspect 
+// to transit (-B switch) and transit to natal (-V switch). Each aspect
 // present during the period has its own row, showing its strength from 0-9
 // (blank=aspect out of orb, "0"=0-9% of max strength, "9"=90-100% exact).
 
@@ -1079,7 +1097,7 @@ void ChartTransitGraph(flag fTrans, flag fProg)
   flag fMonth = us.fInDayMonth, fYear = us.fInDayYear, fMark, fEclipse =
     us.fEclipse && !fTrans && !us.fParallel;
   CI ciT;
-  real rT, rPct;
+  real rT;
 
   // Initialize variables.
   rgEph = (TransGraInfo *)PAllocate(sizeof(TransGraInfo),
@@ -1189,7 +1207,7 @@ void ChartTransitGraph(flag fTrans, flag fProg)
 
         // Check for and add eclipse information to array too.
         if (fEclipse) {
-          et = NCheckEclipseAny(x, asp, y, &rPct);
+          et = NCheckEclipseAny(x, asp, y, NULL);
           if (et > etNone) {
             ppw = &(*rgEph)[y][x][asp];
             if (*ppw == NULL) {
@@ -1210,7 +1228,7 @@ void ChartTransitGraph(flag fTrans, flag fProg)
   // Print chart header row(s).
   AnsiColor(kWhiteA);
   if (!fMonth)
-    sprintf(sz, SzDate(ciT.mon, ciT.day, ciT.yea, fFalse));
+    sprintf(sz, "%s", SzDate(ciT.mon, ciT.day, ciT.yea, fFalse));
   else if (!fYear)
     sprintf(sz, "%3.3s%5d", szMonth[ciT.mon], ciT.yea);
   else if (us.nEphemYears <= 1)
@@ -1275,6 +1293,13 @@ void ChartTransitGraph(flag fTrans, flag fProg)
         pw = (*rgEph)[x][y][asp];
         if (pw == NULL)
           continue;
+        if (us.fIndian) {
+          for (iw = 0; iw < cSlice; iw++)
+            if ((pw[iw]-1) * 10 / 65535 >= 9)
+              break;
+          if (iw >= cSlice)
+            continue;
+        }
         occurcount++;
 
         // Print the name of the aspect in question.
@@ -1363,7 +1388,8 @@ LDone:
 }
 
 
-CONST char *rgszHorizon[4] = {"rises", "zeniths", "sets", "nadirs"};
+CONST char *rgszHorizon[arMax] = {"rises", "zeniths", "sets", "nadirs",
+  "vertex", "antiver"};
 
 // Display a list of planetary rising times relative to the local horizon for
 // the day indicated in the chart information, as specified with the -Zd
@@ -1376,14 +1402,14 @@ void ChartHorizonRising(void)
 {
   char sz[cchSzDef];
   int source[MAXINDAY], type[MAXINDAY], fRet[MAXINDAY],
-    occurcount, division, div, i, j, fT;
-  real time[MAXINDAY], rgalt1[objMax], rgalt2[objMax], azialt[MAXINDAY],
-    pos[MAXINDAY], azi1, azi2, alt1, alt2, mc1, mc2, xA, yA, xV, yV, d, k;
+    occurcount, division, div, i, j;
+  real time[MAXINDAY], azialt[MAXINDAY], pos[MAXINDAY],
+    azi1, azi2, alt1, alt2, mc1, mc2, xA, yA, xV, yV, d, k;
   int yea0, yea1, yea2, mon0, mon1, mon2, day0, day1, day2, counttotal = 0;
-  flag fSav = us.fSeconds, fYear;
+  flag fSav1 = us.fSidereal, fSav2 = us.fSeconds, fYear;
   CI ciSav, ciEvent;
 
-  fT = us.fSidereal; us.fSidereal = fFalse;
+  us.fSidereal = fFalse;
   division = us.nDivision;
   fYear = us.fInDayMonth && us.fInDayYear;
   if (us.fListAuto)
@@ -1424,8 +1450,6 @@ void ChartHorizonRising(void)
   mc2 = planet[oMC]; k = planetalt[oMC];
   EclToEqu(&mc2, &k);
   cp2 = cp0;
-  for (i = 0; i <= is.nObj; i++)
-    rgalt2[i] = planetalt[i];
 
   // Loop through the day, dividing it into a certain number of segments.
   // For each segment we get the planet positions at its endpoints.
@@ -1438,16 +1462,13 @@ void ChartHorizonRising(void)
     mc2 = planet[oMC]; k = planetalt[oMC];
     EclToEqu(&mc2, &k);
     cp1 = cp2; cp2 = cp0;
-    for (i = 0; i <= is.nObj; i++) {
-      rgalt1[i] = rgalt2[i]; rgalt2[i] = planetalt[i];
-    }
 
     // For our segment, check to see if each planet during it rises, sets,
     // reaches its zenith, or reaches its nadir.
 
     for (i = 0; i <= is.nObj; i++) if (!ignore[i] && FThing(i)) {
-      EclToHoriz(&azi1, &alt1, cp1.obj[i], rgalt1[i], mc1, Lat);
-      EclToHoriz(&azi2, &alt2, cp2.obj[i], rgalt2[i], mc2, Lat);
+      EclToHoriz(&azi1, &alt1, cp1.obj[i], cp1.alt[i], mc1, Lat);
+      EclToHoriz(&azi2, &alt2, cp2.obj[i], cp2.alt[i], mc2, Lat);
       j = 0;
 
       // Check for transits to the horizon.
@@ -1459,11 +1480,20 @@ void ChartHorizonRising(void)
       // Check for transits to the meridian.
       } else if (RSgn(MinDifference(azi1, rDegQuad)) !=
         RSgn(MinDifference(azi2, rDegQuad))) {
-        j = 2 + 2*(alt1+alt2 < 0.0);
         d = RAbs(azi1 - (MinDistance(azi1, rDegQuad) < rDegQuad ? rDegQuad :
           270.0))/MinDistance(azi1, azi2);
         k = alt1 + d*(alt2-alt1);
+        j = 2 + 2*(alt1+alt2 < 0.0);
+
+      // Check for transits to the prime vertical.
+      } else if (RSgn(MinDifference(azi1, 0.0)) !=
+        RSgn(MinDifference(azi2, 0.0))) {
+        d = MinDistance(azi1, (MinDistance(azi1, 0.0) < rDegQuad ? 0.0 :
+          rDegHalf))/MinDistance(azi1, azi2);
+        k = alt1 + d*(alt2-alt1);
+        j = 5 + (MinDistance(Midpoint(azi1, azi2), 0.0) < rDegQuad);
       }
+
       if (j && !ignorez[j-1] && occurcount < MAXINDAY) {
         source[occurcount] = i;
         type[occurcount] = j;
@@ -1540,17 +1570,18 @@ void ChartHorizonRising(void)
       if (!us.fSecond1K)
         us.fSeconds = fFalse;
       PrintZodiac(pos[i]);
-      us.fSeconds = fSav;
+      us.fSeconds = fSav2;
       AnsiColor(j);
     }
     sprintf(sz, "%c ", fRet[i] > 0 ? ')' : (fRet[i] < 0 ? ']' : '>'));
     PrintSz(sz);
 
-    AnsiColor(kElemA[type[i]-1]);
+    j = type[i]-1;
+    AnsiColor(j < arVer ? kElemA[j] : (j == arVer ? kCyanA : kDkCyanA));
     sprintf(sz, "%-7s", rgszHorizon[type[i]-1]); PrintSz(sz);
     AnsiColor(kDefault);
     PrintSz(" at ");
-    if (FOdd(type[i])) {
+    if (FOdd(type[i]) && type[i] <= arVer) {
       j = (int)(azialt[i]*60.0)%60;
       sprintf(sz, "%3d%c%02d'", (int)azialt[i], chDegC, j); PrintSz(sz);
       if (us.fSeconds) {
@@ -1587,7 +1618,7 @@ void ChartHorizonRising(void)
   // Recompute original chart placements as have overwritten them.
 
   ciCore = ciMain; ciTwin = ciSav;
-  us.fSidereal = fT;
+  us.fSidereal = fSav1;
   CastChart(1);
 }
 
@@ -1795,6 +1826,8 @@ flag ChartExoplanet(flag fColor)
         AdvancePast(',');
       }
       pexod->mag = atof(pch);
+      if (pexod->mag <= -2)      // Some entries have false magnitude "-99".
+        pexod->mag = 99.9;
       AdvancePast(',');
       pexod->epoch = atof(pch);
       AdvancePast(',');
@@ -1847,10 +1880,7 @@ flag ChartExoplanet(flag fColor)
     PrintTab(' ', VSeconds(10, 16, 24) - us.fEuroTime*4);
     PrintSz("End");
     PrintTab(' ', VSeconds(5, 8, 12) - us.fEuroTime*2);
-    if (!us.fSeconds)
-      PrintSz("Dur.  Unc");
-    else
-      PrintSz("Durat.   Uncert");
+    PrintSz(!us.fSeconds ? "Dur.  Unc" : "Durat.   Uncert");
     PrintSz(".\n\n");
   }
 

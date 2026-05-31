@@ -1,8 +1,8 @@
 /*
-** Astrolog (Version 7.80) File: xdevice.cpp
+** Astrolog (Version 8.00) File: xdevice.cpp
 **
 ** IMPORTANT NOTICE: Astrolog and all chart display routines and anything
-** not enumerated below used in this program are Copyright (C) 1991-2025 by
+** not enumerated below used in this program are Copyright (C) 1991-2026 by
 ** Walter D. Pullen (Astara@msn.com, http://www.astrolog.org/astrolog.htm).
 ** Permission is granted to freely use, modify, and distribute these
 ** routines provided these credits and notices remain unmodified with any
@@ -48,7 +48,7 @@
 ** Initial programming 8/28-30/1991.
 ** X Window graphics initially programmed 10/23-29/1991.
 ** PostScript graphics initially programmed 11/29-30/1992.
-** Last code change made 6/19/2025.
+** Last code change made 5/28/2026.
 */
 
 #include "astrolog.h"
@@ -82,7 +82,7 @@ INLINE void _GetRGB(CONST byte *pb, int *r, int *g, int *b)
   { *b = *pb; *g = *(pb+1); *r = *(pb+2); }
 void BmpSetXY(Bitmap *b, int x, int y, KV kv)
   { _SetRGB(_PbXY(b, x, y), RgbR(kv), RgbG(kv), RgbB(kv)); }
-KV BmpGetXY(Bitmap *b, int x, int y)
+KV BmpGetXY(CONST Bitmap *b, int x, int y)
   { return _GetXY(b, x, y); }
 void SetXY(int x, int y, KI ki)
   { if (!gi.fBmp) BmSet(gi.bm, x, y, ki); else BmpSetXY(&gi.bmp, x, y, ki); }
@@ -395,7 +395,7 @@ void BmpCopyBlock2(CONST Bitmap *bs, real x1, real y1, real x2, real y2,
   Assert(FBetween(x4, 0, bd->x-1));
   Assert(FBetween(y4, 0, bd->y-1));
 
-  if (gs.fMollewide) {
+  if (gs.fMollweide) {
     lonS = Tropical(planet[oSun]);
     latS = planetalt[oSun];
     EclToEqu(&lonS, &latS);
@@ -411,7 +411,7 @@ void BmpCopyBlock2(CONST Bitmap *bs, real x1, real y1, real x2, real y2,
     pbDst = _PbXY(bd, x3, y);
     ry = y1 + (real)(y-y3) * ys;
     yT = (int)ry;
-    if (!gs.fMollewide) {
+    if (!gs.fMollweide) {
       // Fast loop that just copies pixels.
       for (x = x3; x <= x4; x++) {
         xT = (int)(x1 + (real)(x-x3) * xs);
@@ -439,7 +439,7 @@ void BmpCopyBlock2(CONST Bitmap *bs, real x1, real y1, real x2, real y2,
 // Copy a 24 bit bitmap structure to a Windows DC. Since Astrolog's internal
 // bitmap structure is the same as Windows, it can be done all at once.
 
-void BmpCopyWin(CONST Bitmap *b, HDC hdc, int x, int y)
+void BmpCopyToWin(CONST Bitmap *b, HDC hdc, int x, int y)
 {
   BITMAPINFO bi;
 
@@ -456,10 +456,105 @@ void BmpCopyWin(CONST Bitmap *b, HDC hdc, int x, int y)
   bi.bmiHeader.biWidth  =  (b->x);
   bi.bmiHeader.biHeight = -(b->y);
 
-  SetDIBitsToDevice(hdc, x, y, b->x, b->y, 0, 0, 0, b->y,
-    b->rgb, (BITMAPINFO *)&bi, DIB_RGB_COLORS);
+#ifdef WIN
+  if (hdc == wi.hdcPrint) {
+    // When printing the destination area is differently scaled.
+    StretchDIBits(hdc, x, y, b->x, b->y, 0, 0, b->x, b->y,
+      b->rgb, (BITMAPINFO *)&bi, DIB_RGB_COLORS, SRCCOPY);
+  } else
+#endif
+  {
+    // Fast direct 1:1 pixel memory copy.
+    SetDIBitsToDevice(hdc, x, y, b->x, b->y, 0, 0, 0, b->y,
+      b->rgb, (BITMAPINFO *)&bi, DIB_RGB_COLORS);
+  }
+}
+
+
+// This is the reverse of BmpCopyToWin(). Copy the pixels from a Windows DC to
+// a 24 bit bitmap structure. Again since Astrolog's internal bitmap structure
+// is the same as Windows, it can be done all at once.
+
+flag FBmpCopyFromWin(Bitmap *b, HDC hdc, HBITMAP hbmp)
+{
+  BITMAPINFO bi;
+
+  if (!FAllocateBmp(b, wi.xClient, wi.yClient))
+    return fFalse;
+  bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+  bi.bmiHeader.biPlanes = 1;
+  bi.bmiHeader.biBitCount = cbPixelK << 3;
+  bi.bmiHeader.biCompression = BI_RGB;
+  bi.bmiHeader.biSizeImage = 0;
+  bi.bmiHeader.biXPelsPerMeter = bi.bmiHeader.biYPelsPerMeter = 1000;
+  bi.bmiHeader.biClrUsed = 0;
+  bi.bmiHeader.biClrImportant = 0;
+  bi.bmiColors[0].rgbBlue = bi.bmiColors[0].rgbGreen =
+    bi.bmiColors[0].rgbRed = bi.bmiColors[0].rgbReserved = 0;
+  bi.bmiHeader.biWidth  =  (b->x);
+  bi.bmiHeader.biHeight = -(b->y);
+
+  GetDIBits(hdc, hbmp, 0, wi.yClient, b->rgb, &bi, DIB_RGB_COLORS);
+  return fTrue;
+}
+
+
+#ifdef WIN
+// Copy pixels from a large Windows DC to a proportionally smaller one, where
+// each destination pixel is a blend of the colors in the NxN square of pixels
+// composing the source one. This is done to produce an antialiasing effect.
+
+flag FBmpShrinkToWin(HDC hdc, HBITMAP hbmp, HDC hdcWin)
+{
+  Bitmap *b = &wi.bmpSmooth, *b2 = &wi.bmpWin;
+  int x, y, cR, cG, cB, nR, nG, nB, x1, y1, x2, y2, sq, sq2;
+  flag fRet;
+  byte *pb, *pb2;
+
+  if (us.fWriteOld) {
+    // Windows can quickly do the shrinking and blending, but not as well.
+    SetStretchBltMode(hdcWin, HALFTONE);
+    SetBrushOrgEx(hdcWin, 0, 0, NULL);
+    StretchBlt(hdcWin, 0, 0, wi.xClient, wi.yClient,
+      hdc, 0, 0, wi.xClient*wi.nScaleWin, wi.yClient*wi.nScaleWin, SRCCOPY);
+    return fTrue;
+  }
+
+  // First copy to or allocate internal bitmap structures to make use of.
+  wi.xClient *= wi.nScaleWin; wi.yClient *= wi.nScaleWin;
+  fRet = FBmpCopyFromWin(b, hdc, wi.hbmp);
+  wi.xClient /= wi.nScaleWin; wi.yClient /= wi.nScaleWin;
+  if (!fRet)
+    return fFalse;
+
+  if (!FAllocateBmp(b2, wi.xClient, wi.yClient))
+    return fFalse;
+  sq = Sq(wi.nScaleWin); sq2 = sq >> 1;
+
+  // Loop over each pixel in the destination bitmap.
+  for (y = 0; y < wi.yClient; y++) {
+    pb2 = _PbXY(b2, 0, y);
+    for (x = 0; x < wi.xClient; x++) {
+      // Loop over the current NxN square of pixels in the source bitmap.
+      cR = cG = cB = 0;
+      for (y1 = y * wi.nScaleWin, y2 = y1 + wi.nScaleWin; y1 < y2; y1++) {
+        pb = _PbXY(b, x * wi.nScaleWin, y1);
+        for (x1 = x * wi.nScaleWin, x2 = x1 + wi.nScaleWin; x1 < x2; x1++) {
+          _GetRGB(pb, &nR, &nG, &nB);
+          cR += nR; cG += nG; cB += nB;
+          pb += cbPixelK;
+        }
+      }
+      _SetRGB(pb2, (cR + sq2) / sq, (cG + sq2) / sq, (cB + sq2) / sq);
+      pb2 += cbPixelK;
+    }
+  }
+
+  BmpCopyToWin(b2, hdcWin, 0, 0);
+  return fTrue;
 }
 #endif
+#endif // WINANY
 
 
 // Draw the background bitmap onto the specified 24 bit bitmap. Implements the
@@ -475,12 +570,12 @@ flag FBmpDrawBack(Bitmap *bDest)
   static int nTransLast = 0, xLast = 0, yLast = 0;
 
   // Don't draw background if user doesn't want to.
-  if (!gi.fBmp)
+  if (!gs.fBackDraw || !gi.fBmp)
     return fFalse;
 
   // Don't draw background if entire chart will be covered with world map.
   if (gi.bmpWorld.rgb != NULL &&
-    (gi.nMode == gAstroGraph || (gi.nMode == gWorldMap && !gs.fMollewide)))
+    (gi.nMode == gAstroGraph || (gi.nMode == gWorldMap && !gs.fMollweide)))
     return fFalse;
 
   // Don't do anything if bitmap empty or transparent enough to be invisible.
@@ -489,7 +584,7 @@ flag FBmpDrawBack(Bitmap *bDest)
     return fFalse;
 
   // Cache bitmap with proper percentage blend with current background color.
-  kv = rgbbmp[gi.kiOff];
+  kv = KvFromKi(gi.kiOff);
   if (b2->x != b->x || b2->y != b->y || kv != kvLast || nTrans != nTransLast) {
     if (!FAllocateBmp(b2, b->x, b->y))
       return fFalse;
@@ -561,7 +656,7 @@ flag FBmpDrawBack(Bitmap *bDest)
     }
     wi.hbmpPrev = (HBITMAP)SelectObject(wi.hdcBack, wi.hbmpBack);
     xLast = b2->x; yLast = b2->y;
-    BmpCopyWin(b2, wi.hdcBack, 0, 0);
+    BmpCopyToWin(b2, wi.hdcBack, 0, 0);
   }
   SetStretchBltMode(wi.hdc, COLORONCOLOR);
   StretchBlt(wi.hdc, x1, y1, x2, y2, wi.hdcBack, x3, y3, x4, y4, SRCCOPY);
@@ -576,7 +671,7 @@ flag FBmpDrawBack(Bitmap *bDest)
 flag FBmpDrawMap()
 {
   Bitmap *bmp = &gi.bmp;
-  int nScl = 1, xc, yc, zc, x1, x2, y1, y2, xi, yi, n, n2;
+  int nScl = 1, yWin2, xc, yc, zc, x1, x2, y1, y2, xi, yi, n, n2;
   real deg = Mod(rDegMax - gs.rRot), lonS, latS, rxc, ryc, rzc,
     lon, lat, lat0, rT, rLen, sint, cost, sina, cosa;
   KV kv;
@@ -587,14 +682,17 @@ flag FBmpDrawMap()
     return fFalse;
   if (gi.bmpWorld.rgb == NULL && !FLoadBmp(BITMAP_EARTH, &gi.bmpWorld, fFalse))
     return fFalse;
+  yWin2 = gs.yWin;
+  if (gs.fText && fMap)
+    yWin2 -= (yFont2*gi.nScaleText + 2)*gi.nScaleT;
 #ifdef WINANY
   if (!gi.fFile) {
-    if (!FAllocateBmp(&wi.bmpWin, gs.xWin, gs.yWin))
+    if (!FAllocateBmp(&wi.bmpWin, gs.xWin, yWin2))
       return fFalse;
     bmp = &wi.bmpWin;
   }
 #endif
-  if (gs.fMollewide && us.fEclipse &&
+  if (gs.fMollweide && us.fEclipse &&
     NCheckEclipseSolar(oEar, oMoo, oSun, NULL) > etNone)
     fDoEclipse = fTrue;
 
@@ -606,24 +704,24 @@ flag FBmpDrawMap()
   x2 = (int)((real)gs.xWin       * deg / rDegMax);
 
   // Draw map on a -XW rectangular world map.
-  if (gi.nMode == gAstroGraph || (gi.nMode == gWorldMap && !gs.fMollewide)) {
+  if (gi.nMode == gAstroGraph || (gi.nMode == gWorldMap && !gs.fMollweide)) {
     if (x1 == 0 || x2 == 0)
       BmpCopyBlock(&gi.bmpWorld, 0, 0, gi.bmpWorld.x-1, gi.bmpWorld.y-1,
-        bmp, 0, 0, gs.xWin-1, gs.yWin-1);
+        bmp, 0, 0, gs.xWin-1, yWin2-1);
     else {
       BmpCopyBlock(&gi.bmpWorld, 0, 0, x1-1, gi.bmpWorld.y-1,
-        bmp, gs.xWin-x2-1, 0, gs.xWin-1, gs.yWin-1);
+        bmp, gs.xWin-x2-1, 0, gs.xWin-1, yWin2-1);
       BmpCopyBlock(&gi.bmpWorld, x1, 0, gi.bmpWorld.x-1, gi.bmpWorld.y-1,
-        bmp, 0, 0, gs.xWin-x2, gs.yWin-1);
+        bmp, 0, 0, gs.xWin-x2, yWin2-1);
     }
 
-  // Draw map on a -XW0 Mollewide projection world map.
-  } else if (gi.nMode == gWorldMap && gs.fMollewide) {
+  // Draw map on a -XW0 Mollweide projection world map.
+  } else if (gi.nMode == gWorldMap && gs.fMollweide) {
     if (!FBmpDrawBack(bmp))
-      BmpSetAll(bmp, rgbbmp[gi.kiOff]);
-    for (y2 = 0; y2 < gs.yWin; y2++) {
-      y1 = y2 * gi.bmpWorld.y / gs.yWin;
-      rT = RMollewide((real)y2 * rDegHalf / (real)gs.yWin - rDegQuad);
+      BmpSetAll(bmp, KvFromKi(gi.kiOff));
+    for (y2 = 0; y2 < yWin2; y2++) {
+      y1 = y2 * gi.bmpWorld.y / yWin2;
+      rT = RMollweide((real)y2 * rDegHalf / (real)yWin2 - rDegQuad);
       n = (gs.xWin - (int)(rT * (real)gs.xWin / rDegHalf)) >> 1;
       if (x1 == 0 || x2 == 0)
         BmpCopyBlock(&gi.bmpWorld, 0, y1, gi.bmpWorld.x-1, y1,
@@ -641,7 +739,7 @@ flag FBmpDrawMap()
   // Draw map on a -XP polar globe.
   } else if (gi.nMode == gPolar) {
     if (!FBmpDrawBack(bmp))
-      BmpSetAll(bmp, rgbbmp[gi.kiOff]);
+      BmpSetAll(bmp, KvFromKi(gi.kiOff));
     lonS = Tropical(planet[oSun]);
     latS = planetalt[oSun];
     EclToEqu(&lonS, &latS);
@@ -674,7 +772,7 @@ flag FBmpDrawMap()
         x2 = (int)(lon * ((real)gi.bmpWorld.x - rSmall) / rDegMax);
         y2 = (int)(lat * ((real)gi.bmpWorld.y - rSmall) / rDegHalf);
         kv = _GetXY(&gi.bmpWorld, x2, y2);
-        if (gs.fMollewide)
+        if (gs.fMollweide)
           BmpDarkenKv(lon, lat, lonS, latS, fDoEclipse, &kv);
         BmpSetXY(bmp, x1, y1, kv);
       }
@@ -683,7 +781,7 @@ flag FBmpDrawMap()
   // Draw map on a -XG globe.
   } else if (gi.nMode == gGlobe) {
     if (!FBmpDrawBack(bmp))
-      BmpSetAll(bmp, rgbbmp[gi.kiOff]);
+      BmpSetAll(bmp, KvFromKi(gi.kiOff));
     if (gs.rTilt != 0.0) {
       sint = RSinD(-gs.rTilt);
       cost = RCosD(-gs.rTilt);
@@ -747,7 +845,30 @@ flag FBmpDrawMap()
         x2 = (int)(lon * ((real)gi.bmpWorld.x - rSmall) / rDegMax);
         y2 = (int)(lat * ((real)gi.bmpWorld.y - rSmall) / rDegHalf);
         kv = _GetXY(&gi.bmpWorld, x2, y2);
-        if (gs.fMollewide)
+#if FALSE
+        // Test: Empirically highlight Vertex areas for a particular planet.
+        if (us.fWriteOld) {
+          real tmp, mc, vtx, lon2, lat2, azi, alt;
+          lon2 = rDegHalf - lon; lat2 = rDegQuad - lat;
+          SwissHouse(is.T, lon2, lat2, us.nHouseSystem, &tmp, &mc, &tmp, &vtx,
+            &tmp, &tmp, &tmp, &tmp);
+          if (us.fHouse3D) {
+            if (MinDistance(planet[us.objRequire], vtx) < 2.0 ||
+              MinDistance(planet[us.objRequire], Mod(vtx+rDegHalf)) < 2.0)
+              kv = rgbbmp[kRed];
+          } else {
+            azi = planet[us.objRequire]; alt = planetalt[us.objRequire];
+            EclToEqu(&azi, &alt);
+            tmp = 0.0; EclToEqu(&mc, &tmp);
+            azi = Mod(mc - azi + rDegQuad);
+            EquToLocal(&azi, &alt, -lat2);
+            azi = rDegMax - azi;
+            if (RAbs(alt) < 2.0)
+              kv = rgbbmp[kRed];
+          }
+        }
+#endif
+        if (gs.fMollweide)
           BmpDarkenKv(lon, lat, lonS, latS, fDoEclipse, &kv);
         BmpSetXY(bmp, x1, y1, kv);
       }
@@ -756,7 +877,7 @@ flag FBmpDrawMap()
 
 #ifdef WINANY
   if (!gi.fFile)
-    BmpCopyWin(bmp, wi.hdc, 0, 0);
+    BmpCopyToWin(bmp, wi.hdc, 0, 0);
 #endif
   return fTrue;
 }
@@ -785,7 +906,7 @@ flag FBmpDrawMap2(int x1, int y1, int x2, int y2,
 #endif
 
   rx = (real)gi.bmpWorld.x / rDegMax; ry = (real)gi.bmpWorld.y / rDegHalf;
-  BmpSetAll(bmp, rgbbmp[gi.kiOff]);
+  BmpSetAll(bmp, KvFromKi(gi.kiOff));
   rx1 = Mod(rx1); rx2 = Mod(rx2);
   x3 = rx1 * rx; y3 = ry1 * ry;
   x4 = rx2 * rx; y4 = ry2 * ry;
@@ -802,21 +923,19 @@ flag FBmpDrawMap2(int x1, int y1, int x2, int y2,
 
 #ifdef WINANY
   if (!gi.fFile)
-    BmpCopyWin(bmp, wi.hdc, 0, 0);
+    BmpCopyToWin(bmp, wi.hdc, 0, 0);
 #endif
   return fTrue;
 }
 
 
 // Adjust the window or bitmap's content to be smoother, and look antialiased.
+// This is a simple method different from actually zooming down thicker lines.
 
 flag FBmpAntialias()
 {
-#ifdef WINANY
-  BITMAPINFO bi;
-#endif
   Bitmap *bmp = &gi.bmp;
-  int x, y, n1, n2, n3, n4;
+  int xmax = gs.xWin, ymax = gs.yWin, x, y, n1, n2, n3, n4;
   KV kv1, kv2, kv3, kv4;
   real rBlend = !gs.fInverse ? 0.55 : 0.67;
 
@@ -826,30 +945,18 @@ flag FBmpAntialias()
   // Copy the contents of the window about to be displayed to a bitmap.
   if (!gi.fFile) {
 #ifdef WIN
-    if (!wi.fBuffer || wi.hdcPrint != NULL)
+    if (!wi.fBuffer || wi.nScaleWin > 1)
       return fTrue;
 #endif
-    if (!FAllocateBmp(bmp, gs.xWin, gs.yWin))
+    if (!FBmpCopyFromWin(bmp, wi.hdc, wi.hbmp))
       return fFalse;
-    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bi.bmiHeader.biPlanes = 1;
-    bi.bmiHeader.biBitCount = cbPixelK << 3;
-    bi.bmiHeader.biCompression = BI_RGB;
-    bi.bmiHeader.biSizeImage = 0;
-    bi.bmiHeader.biXPelsPerMeter = bi.bmiHeader.biYPelsPerMeter = 1000;
-    bi.bmiHeader.biClrUsed = 0;
-    bi.bmiHeader.biClrImportant = 0;
-    bi.bmiColors[0].rgbBlue = bi.bmiColors[0].rgbGreen =
-      bi.bmiColors[0].rgbRed = bi.bmiColors[0].rgbReserved = 0;
-    bi.bmiHeader.biWidth  =  (bmp->x);
-    bi.bmiHeader.biHeight = -(bmp->y);
-    GetDIBits(wi.hdc, wi.hbmp, 0, gs.yWin, bmp->rgb, &bi, DIB_RGB_COLORS);
+    xmax = wi.xClient; ymax = wi.yClient;
   }
 #endif
 
   // Antialias the content on the bitmap.
-  for (y = 0; y < gs.yWin - 1; y++)
-    for (x = 0; x < gs.xWin - 1; x++) {
+  for (y = 0; y < ymax - 1; y++)
+    for (x = 0; x < xmax - 1; x++) {
       // Check each 2x2 pixel section.
       kv1 = BmpGetXY(bmp, x, y);
       kv2 = BmpGetXY(bmp, x+1, y);
@@ -884,7 +991,7 @@ flag FBmpAntialias()
 
 #ifdef WINANY
   if (!gi.fFile)
-    BmpCopyWin(bmp, wi.hdc, 0, 0);
+    BmpCopyToWin(bmp, wi.hdc, -gi.xOffset, -gi.yOffset);
 #endif
   return fTrue;
 }
@@ -1032,6 +1139,126 @@ void WriteBmp(FILE *file)
 }
 
 
+#define LFlipB(l) ((((l) & 0xff) << 24) | (((l) & 0xff00) << 8) | \
+  (((l) & 0xff0000) >> 8) | (((l) & 0xff000000) >> 24))
+
+// Output a PNG chunk to a PNG file being composed.
+
+void WritePNGChunk(FILE *file, CONST char szType[5], byte *rgb, dword cb,
+  CONST dword rglCrc[256])
+{
+  dword dwT, crc, n;
+
+  dwT = LFlipB(cb);
+  fwrite(&dwT, 1, 4, file);
+  fwrite(szType, 1, 4, file);
+  if (cb > 0)
+    fwrite(rgb, 1, cb, file);
+
+  // Compute CRC for this chunk.
+  crc = 0xffffffffL;
+  for (n = 0; n < 4; n++)
+    crc = rglCrc[(crc ^ szType[n]) & 0xff] ^ (crc >> 8);
+  for (n = 0; n < cb; n++)
+    crc = rglCrc[(crc ^ rgb[n])    & 0xff] ^ (crc >> 8);
+  crc ^= 0xffffffffL;
+  crc = LFlipB(crc);
+  fwrite(&crc, 1, 4, file);
+}
+
+
+// Output a bitmap to file in Portable Network Graphics (PNG) format. Note
+// that the PNG file produced will not be compressed any.
+
+flag WritePNG(CONST Bitmap *b, FILE *file)
+{
+  dword rglCrc[256], crc, dwT, dwAdler;
+  int n, k, ib = 0, x, y, s1 = 1, s2 = 0, i;
+  byte rgbHead[13], *rgb;
+  KV kv;
+
+  // Initialize CRC table for chunk CRC's.
+  for (n = 0; n < 256; n++) {
+    crc = n;
+    for (k = 0; k < 8; k++)
+      crc = (crc & 1) ? (0xEDB88320L ^ (crc >> 1)) : (crc >> 1);
+    rglCrc[n] = crc;
+  }
+
+  // PNG signature
+  CONST byte png_signature[8] = {137, 80, 78, 71, 13, 10, 26, 10};
+  fwrite(png_signature, 1, 8, file);
+
+  // IHDR chunk
+  dwT = LFlipB(b->x);
+  CopyRgb((pbyte)&dwT, rgbHead, 4);
+  dwT = LFlipB(b->y);
+  CopyRgb((pbyte)&dwT, rgbHead + 4, 4);
+  rgbHead[8]  = 8;  // Bit depth
+  rgbHead[9]  = 2;  // Color type: Truecolor (RGB)
+  rgbHead[10] = 0;  // Compression method
+  rgbHead[11] = 0;  // Filter method
+  rgbHead[12] = 0;  // Interlace method
+  WritePNGChunk(file, "IHDR", rgbHead, 13, rglCrc);
+
+  // Deflate block (no compression)
+  int cbRow, cbDataBmp, cRowBlock, cBlock, iBlock, cbBlock;
+  cbRow = b->x*cbPixelK + 1;
+  cbDataBmp = cbRow * b->y;
+  cRowBlock = 65535 / cbRow;
+  cBlock = (b->y + (cRowBlock - 1)) / cRowBlock;
+
+  rgb = PAllocate(2 + 5*cBlock + cbDataBmp + 4,
+    "PNG data"); // zlib header + deflate + data + adler32
+  if (rgb == NULL)
+    return fFalse;
+  rgb[ib++] = 0x78;  // Zlib header for no compression
+  rgb[ib++] = 0x01;
+
+  for (iBlock = 0; iBlock < cBlock; iBlock++) {
+    // Uncompressed deflate block
+    cbBlock = cbRow * ((iBlock+1)*cRowBlock <= b->y ? cRowBlock :
+      b->y - iBlock*cRowBlock);
+    rgb[ib++] = (iBlock >= cBlock-1);  // 0x1 for final block, no compression
+    rgb[ib++] = cbBlock & 0xff;
+    rgb[ib++] = (cbBlock >> 8) & 0xff;
+    rgb[ib++] = ~cbBlock & 0xff;
+    rgb[ib++] = (~cbBlock >> 8) & 0xff;
+
+    for (y = iBlock*cRowBlock; y < (iBlock+1)*cRowBlock && y < b->y; y++) {
+      rgb[ib++] = 0;
+      for (x = 0; x < b->x; x++) {
+        kv = BmpGetXY(b, x, y);
+        rgb[ib++] = RgbR(kv);
+        rgb[ib++] = RgbG(kv);
+        rgb[ib++] = RgbB(kv);
+      }
+    }
+    // Compute Adler-32 checksum for this block
+    for (i = 0; i < cbBlock; i++) {
+      s1 = (s1 + rgb[ib - cbBlock + i]) % 65521;
+      s2 = (s2 + s1) % 65521;
+    }
+  }
+
+  // Output Adler-32 checksum
+  dwAdler = (s2 << 16) + s1;
+  rgb[ib++] = (dwAdler >> 24) & 0xff;
+  rgb[ib++] = (dwAdler >> 16) & 0xff;
+  rgb[ib++] = (dwAdler >> 8) & 0xff;
+  rgb[ib++] = dwAdler & 0xff;
+  Assert(ib == 2 + 5*cBlock + cbDataBmp + 4);
+
+  // IDAT chunk
+  WritePNGChunk(file, "IDAT", rgb, ib, rglCrc);
+  DeallocateP(rgb);
+
+  // IEND chunk
+  WritePNGChunk(file, "IEND", NULL, 0, rglCrc);
+  return fTrue;
+}
+
+
 // Begin the work of creating a graphics file. Prompt for a filename if need
 // be, and if valid, create the file and open it for writing.
 
@@ -1047,25 +1274,17 @@ flag BeginFileX()
 #endif
 
 #ifndef WIN
-  if (gi.szFileOut == NULL && ((gs.ft == ftBmp && gs.chBmpMode == 'B') ||
-#ifdef PS
-    gi.fEps ||
-#endif
-    gs.ft == ftWmf || gs.ft == ftWire)) {
+  if (gi.szFileOut == NULL && (gs.ft != ftBmp || (gs.ft == ftBmp &&
+    (gs.chBmpMode == 'B' || gs.chBmpMode == 'P')))) {
     sprintf(sz, "(It is recommended to specify an extension of '.%s'.)\n",
-      gs.ft == ftBmp ? "bmp" :
-#ifdef WIRE
-      (gs.ft == ftWire ? "dw" :
-#endif
+      gs.ft == ftBmp ? (gs.chBmpMode == 'B' ? "bmp" : "png") :
+      gs.ft == ftWmf ? "wmf" : (gs.ft == ftSVG ? "svg" : (gs.ft == ftPS ?
 #ifdef PS
-      (gi.fEps ? "eps" : "wmf")
+      (gs.fPSComplete ? "ps" : "eps")
 #else
-      "wmf"
+      "ps"
 #endif
-#ifdef WIRE
-      )
-#endif
-      );
+      : "dw")));
     PrintSzScreen(sz);
   }
 #endif // WIN
@@ -1073,9 +1292,9 @@ flag BeginFileX()
   loop {
 #ifndef WIN
     if (gi.szFileOut == NULL) {
-      sprintf(sz, "Enter name of file to write %s to",
-        gs.ft == ftBmp ? "bitmap" : (gs.ft == ftPS ? "PostScript" :
-        (gs.ft == ftWmf ? "metafile" : "wireframe")));
+      sprintf(sz, "Enter name of file to write %s to", gs.ft == ftBmp ?
+        "bitmap" : (gs.ft == ftPS ? "PostScript" : (gs.ft == ftWmf ?
+        "metafile" : (gs.ft == ftSVG ? "SVG" : "wireframe"))));
       InputString(sz, sz);
       FCloneSz(sz, &gi.szFileOut);
    }
@@ -1089,8 +1308,8 @@ flag BeginFileX()
         WaitForSingleObject(wi.hMutex, 1000);
     }
 #endif
-    gi.file = fopen(gi.szFileOut, (gs.ft == ftBmp && gs.chBmpMode != 'B') ||
-      gs.ft == ftPS || gs.ft == ftWire ? "w" : "wb");
+    gi.file = fopen(gi.szFileOut, (gs.ft == ftBmp && (gs.chBmpMode == 'B' ||
+      gs.chBmpMode == 'P')) || gs.ft == ftWmf ? "wb" : "w");
     if (gi.file != NULL)
       break;
 #ifdef WIN
@@ -1126,6 +1345,8 @@ void EndFileX()
         WriteBmp2(&gi.bmp, gi.file);
     } else if (gs.chBmpMode == 'A')
       WriteAscii(gi.file);
+    else if (gs.chBmpMode == 'P')
+      WritePNG(&gi.bmp, gi.file);
     else
       WriteXBitmap(gi.file, gi.szFileOut, gs.chBmpMode);
   }
@@ -1137,6 +1358,13 @@ void EndFileX()
   else if (gs.ft == ftWmf) {
     PrintProgress("Writing metafile to file.");
     WriteMeta(gi.file);
+  }
+#endif
+#ifdef SVG
+  else if (gs.ft == ftSVG) {
+    if (gi.kiSvgAct != kMax)
+      fprintf(gi.file, "</g>\n");
+    fprintf(gi.file, "</g>\n</svg>\n");
   }
 #endif
 #ifdef WIRE
@@ -1260,12 +1488,15 @@ void PsDash(int dashoff)
 
 // Set a linewidth size to be used by PostScript figure primitive commands.
 
-void PsLineWidth(int linewidth)
+void PsLineWidth(int nWidth)
 {
-  if ((real)linewidth != gi.rLineWid) {
+  nWidth += gs.nThickAdjust;
+  if (nWidth < 1)
+    nWidth = 1;
+  if (nWidth != gi.nLineWid) {
     PsStrokeForce();
-    fprintf(gi.file, "%d setlinewidth\n", linewidth);
-    gi.rLineWid = (real)linewidth;
+    fprintf(gi.file, "%d setlinewidth\n", nWidth);
+    gi.nLineWid = nWidth;
   }
 }
 
@@ -1296,12 +1527,12 @@ void PsFont(int nFont)
 void PsBegin()
 {
   fprintf(gi.file, "%%!PS-Adobe-2.0");
-  if (gi.fEps)
+  if (!gs.fPSComplete)
     fprintf(gi.file, " EPSF-2.0");
   fprintf(gi.file, "\n%%%%Title: %s\n", gi.szFileOut);
   fprintf(gi.file, "%%%%Creator: %s %s\n", szAppName, szVersionCore);
   fprintf(gi.file, "%%%%CreationDate: %s\n", szDateCore);
-  if (gi.fEps) {
+  if (!gs.fPSComplete) {
     fprintf(gi.file, "%%%%BoundingBox: 0 0 %d %d\n", gs.xWin, gs.yWin);
     fprintf(gi.file, "%%%%EndComments\n");
     fprintf(gi.file, "%%%%BeginSetup\n");
@@ -1335,7 +1566,7 @@ void PsEnd()
   int i;
 
   PsStrokeForce();
-  if (gi.fEps)
+  if (!gs.fPSComplete)
     fprintf(gi.file, "%%%%EOF\n");
   else {
     fprintf(gi.file, "showpage\n");
@@ -1402,10 +1633,10 @@ void MetaSz(CONST char *sz)
 
 void MetaSelect()
 {
-  if (gi.pwPoly != NULL) {        // Invalidate PolyLine cache
+  if (gi.pwPoly != NULL) {    // Invalidate PolyLine cache
     gi.pwPoly = NULL;
     MetaPoint(gi.xPen, gi.yPen, rgbbmp[gi.kiPoly]);
-    gi.xPen = -1;    
+    gi.xPen = -1;
   }
   if (gi.kiLineDes != gi.kiLineAct) {
     MetaSelectObject(gi.kiLineDes);
@@ -1440,13 +1671,13 @@ void MetaInit()
 
   gi.pwMetaCur = (word *)gi.bm;
   // Placeable Metaheader
-  MetaLong(0x9AC6CDD7L);
+  MetaLong(0x9ac6cdd7);
   MetaWord(0);                             // Not used
   MetaWord(0); MetaWord(0);
   MetaWord(gs.xWin); MetaWord(gs.yWin);
   MetaWord(gs.xWin/6);                     // Units per inch
   MetaLong(0L);                            // Not used
-  MetaWord(0x9AC6 ^ 0xCDD7 ^ gs.xWin ^ gs.yWin ^ gs.xWin/6);  // Checksum
+  MetaWord(0x9ac6 ^ 0xcdd7 ^ gs.xWin ^ gs.yWin ^ gs.xWin/6);  // Checksum
   // Metaheader
   MetaWord(1);                             // Metafile type
   MetaWord(9);                             // Size of header in words
@@ -1472,10 +1703,13 @@ void MetaInit()
   for (j = 1; j <= 4; j++)
     for (i = 0; i < 16; i++) {
       k = (j <= 1 ? gi.nPenWid * (1 + gs.fThick) : 0);
+      k += gs.nThickAdjust;
+      if (k < 0)
+        k = 0;
       MetaCreatePen(j <= 2 ? 0 : j-2 /* PS_SOLID; PS_DASH; PS_DOT */,
         k, rgbbmp[i]);
     }
-  for (i = 0; i < 16; i++) {
+  for (i = 0; i < cColor; i++) {
     MetaCreateBrush(0 /* BS_SOLID */, rgbbmp[i]);
   }
   MetaCreateBrush(1 /* BS_NULL */, 0L);
@@ -1483,11 +1717,11 @@ void MetaInit()
   if (gs.nFontAll > 0)
     for (i = 1; i < cFont; i++) {
       j = (CchSz(rgszFontName[i]) + 1) >> 1;
-      MetaCreateFont(j, 0, i < fiCourier ? -METAMUL*gi.nScale : yFontT,
+      MetaCreateFont(j, 0, i < fiArial ? -METAMUL*gi.nScale : yFontT,
         i == fiWingding ? 2 /* Symbol Charset */ : 0 /* Ansi Charset */);
-      j = (i == fiWingding || i >= fiCourier ?
+      j = (i == fiWingding || i >= fiArial ?
         1 /* Draft */ : 0 /* Default */);
-      k = (i == fiWingding || i == fiCourier || i == fiConsolas ?
+      k = (i == fiWingding || i >= fiCourier ?
           1 /* Fixed */ : 2 /* Variable */) |
         (i <= fiWingding ? 0x10 /* Roman */ :
           (i >= fiCourier ? 0x30 /* Modern */ : 0 /* Don't Care */));
@@ -1522,6 +1756,75 @@ void WriteMeta(FILE *file)
 #endif // META
 
 
+#ifdef SVG
+/*
+******************************************************************************
+** Scalable Vector Graphics File Routines.
+******************************************************************************
+*/
+
+// Output a SVG color change if needed. It's needed only when the color we
+// want to use is different from the current color in the SVG file.
+
+void SvgSetColor()
+{
+  if (gi.kiSvgDes == gi.kiSvgAct)
+    return;
+  if (gi.kiSvgAct != kMax)
+    fprintf(gi.file, "</g>\n");
+  fprintf(gi.file, "<g style=\"stroke:%s\">\n", SzColorHTML(gi.kiSvgDes));
+  gi.kiSvgAct = gi.kiSvgDes;
+}
+
+
+// Output a string of text to an SVG file.
+
+void SvgText(CONST char *sz, int ch, int x, int y, int nFont, int nScale,
+  flag fCenter)
+{
+  CONST char *pch;
+  wchar wch;
+  int n;
+
+  SvgSetColor();
+  fprintf(gi.file, "<text x=\"%d\" y=\"%d\" fill=\"%s\" stroke=\"none\"",
+    x, y, SzColorHTML(gi.kiSvgAct));
+  if (fCenter)
+    fprintf(gi.file, " text-anchor=\"middle\" dominant-baseline=\"middle\"");
+  fprintf(gi.file, " style=\"font-family:%s; font-size:%dpx;",
+    rgszFontName[nFont], nScale);
+  if (sz != NULL)
+    fprintf(gi.file, " white-space:pre");
+  fprintf(gi.file, "\">");
+  if (sz == NULL) {
+    // Empty input string means to use the input char as a length one string.
+    wch = ch;
+    pch = "";
+    n = 0;
+    goto LChar;
+  } else
+    pch = sz;
+  while (*pch) {
+    n = PchToWch((uchar *)pch, &wch);
+LChar:
+    // Encode certain Unicode characters that need to be in XML files.
+    if (wch == '&')
+      fprintf(gi.file, "&amp;");
+    else if (wch == '<')
+      fprintf(gi.file, "&lt;");
+    else if (wch == '>')
+      fprintf(gi.file, "&gt;");
+    else if (wch < 128)
+      fprintf(gi.file, "%c", (uchar)wch);
+    else
+      fprintf(gi.file, "&#%d;", (int)wch);
+    pch += n;
+  }
+  fprintf(gi.file, "</text>\n");
+}
+#endif // SVG
+
+
 #ifdef WIRE
 /*
 ******************************************************************************
@@ -1536,7 +1839,7 @@ void WriteMeta(FILE *file)
 void WriteWire(FILE *file)
 {
   word *pw = (word *)gi.bm;
-  int x1, y1, z1, x2, y2, z2, n;
+  int x1, y1, z1, x2, y2, z2, n, nR, nG, nB;
   KV kv;
 
   if (file == NULL)
@@ -1554,19 +1857,21 @@ void WriteWire(FILE *file)
 
       // Output a color change.
       if (gs.fColor) {
-        n = pw[1];
-        if (n < cColor) {
+        n = BLo(pw[1]);
+        if (n < cColor2) {
           kv = rgbbmp[n];
-          if (kv != rgbbmpDef[n])
+          if (kv != rgbbmpDef[n] || n >= kIndigo)
             fprintf(file, "Rgb %d %d %d\n", RgbR(kv), RgbG(kv), RgbB(kv));
-          else if (n != kOrange)
-            fprintf(file, "%s\n", szColor[n]);
           else
-            fprintf(file, "Maize\n");
+            fprintf(file, "%s\n", szColor[n]);
         } else {
-          if (gs.fInverse)
-            n = 255 - n;
-          fprintf(file, "GrayN %d\n", n);
+          // Invalid color index means RGB stored in current and next word.
+          nR = BHi(pw[1]); nG = BLo(pw[2]); nB = BHi(pw[2]);
+          if (nR == nG && nG == nB)
+            fprintf(file, "GrayN %d\n", nR);
+          else
+            fprintf(file, "Rgb %d %d %d\n", nR, nG, nB);
+          pw++;
         }
       }
       pw += 2;
@@ -1595,6 +1900,8 @@ void WireNum(int n)
 
 void WireLine(int x1, int y1, int z1, int x2, int y2, int z2)
 {
+  KV kv;
+
   if (!FBetween(x1, -32767, 32767) || !FBetween(x2, -32767, 32767) ||
       !FBetween(y1, -32767, 32767) || !FBetween(y2, -32767, 32767) ||
       !FBetween(z1, -32767, 32767) || !FBetween(z2, -32767, 32767))
@@ -1603,7 +1910,13 @@ void WireLine(int x1, int y1, int z1, int x2, int y2, int z2)
   if (gi.kiInFile != gi.kiCur) {
     gi.kiInFile = gi.kiCur;
     WireNum(32768);
-    WireNum(gi.kiCur);
+    if (gi.kiCur >= 0)
+      WireNum(gi.kiCur);
+    else {
+      kv = -gi.kiCur;
+      WireNum(WFromBB(kMax,     RgbR(kv)));
+      WireNum(WFromBB(RgbG(kv), RgbB(kv)));
+    }
   }
   WireNum(x1); WireNum(y1); WireNum(z1);
   WireNum(x2); WireNum(y2); WireNum(z2);
@@ -1710,6 +2023,7 @@ void WireStar(int x, int y, int z, ES *pes)
     else {
       n = 255 - (int)((pes->mag - rStarLite) / rStarSpan * 224.0);
       n = Min(n, 255); n = Max(n, 32);
+      n = -(int)Rgb(n, n, n);
     }
     DrawColor(n);
   }
@@ -1783,9 +2097,8 @@ void WireMapCalc(real x1, real y1, int *xp, int *yp, int *zp, flag fSky,
 
 void WireDrawGlobe(flag fSky, real deg)
 {
-  int X[objMax], Y[objMax], Z[objMax], M[objMax], N[objMax], O[objMax],
-    rz, unit = 12*gi.nScale,
-    x, y, z, xold, yold, zold, m, n, o, u, v, w, i, j, k, l;
+  int rz, unit = 12*gi.nScale, x, y, z, xold, yold, zold,
+    m, n, o, u, v, w, i, j, k, l;
   real planet1[objMax], planet2[objMax], x1, y1, rT;
   ES es;
 
@@ -1845,16 +2158,6 @@ void WireDrawGlobe(flag fSky, real deg)
     planet1[i] = Tropical(planet[i]);
     planet2[i] = planetalt[i];
     EclToEqu(&planet1[i], &planet2[i]);    // Calculate zenith long. & lat.
-  }
-
-  // Compute screen coordinates of each object, if it's even visible.
-
-  for (i = 0; i <= is.nObj; i++) if (FProper(i)) {
-    WireMapCalc(planet1[i], planet2[i], &u, &v, &w, fSky, rT, rz, deg);
-    X[i] = u;
-    Y[i] = v;
-    Z[i] = w;
-    M[i] = X[i]; N[i] = Y[i]; O[i] = Z[i]-unit/2;
   }
 
   // Draw ecliptic equator and zodiac sign wedges.
@@ -1946,7 +2249,7 @@ void WireDrawGlobe(flag fSky, real deg)
     while (EnumExoplanets(&es)) {
       x1 = es.lon; y1 = es.lat;
       WireMapCalc(x1, y1, &j, &k, &l, fSky, rT, rz, deg);
-        WireStar(j, k, l, &es);
+      WireStar(j, k, l, &es);
     }
   }
 
@@ -1967,7 +2270,7 @@ void WireDrawGlobe(flag fSky, real deg)
       WireGlobeCalc(x1, y1, &u, &v, &w, rz, deg);
       if (gs.fLabelAsp) {
         j = KiCity(i);
-        if (j < 0)
+        if (j == ~0)
           continue;
         DrawColor(j);
       }
@@ -1977,32 +2280,48 @@ void WireDrawGlobe(flag fSky, real deg)
 #endif
 
   // Draw MC, IC, Asc, and Des lines for each object, as great circles around
-  // the globe. The result is a 3D astro-graph chart.
+  // the globe. The result is a 3D astrocartography chart.
 
   if (!fSky) for (i = 0; i <= is.nObj; i++) if (FProper(i)) {
-    for (k = 0; k < 4; k++) {
-      if (ignorez[!k ? arDes : (k == 1 ? arIC : (k == 2 ? arAsc : arMC))])
+    for (k = 0; k < arMax; k++) {
+      if (ignorez[!k ? arDes : (k == 1 ? arIC : (k == 2 ? arAsc :
+        (k == 3 ? arMC : k)))])
         continue;
-      DrawColor(kObjB[!k ? oDes : (k == 1 ? oNad : (k == 2 ? oAsc : oMC))]);
+      DrawColor(k < arDir ? kObjB[!k ? oDes : (k == 1 ? oNad :
+        (k == 2 ? oAsc : oMC))] : (k == arVer ? kCyanB : kDkCyanB));
       for (j = 0; j <= nDegHalf; j++) {
-        if (FOdd(k)) {
+        if (k == 1 || k == 3) {
+          // MC and IC lines
           x1 = planet1[i] + (k == 3 ? 0.0 : rDegHalf);
           y1 = (real)(j - 90);
-        } else {
+        } else if (k < arDir) {
+          // Asc and Des lines
           l = j + (k == 0)*nDegHalf + 90;
           if (l >= nDegMax)
             l -= nDegMax;
           x1 = (real)l; y1 = 0.0;
           CoorXform(&x1, &y1, rDegQuad - planet2[i]);
           x1 += planet1[i] + rDegQuad;
+        } else {
+          // Vertex and Antivertex lines
+          l = j + (k == arVer)*nDegHalf + 90;
+          if (l >= nDegMax)
+            l -= nDegMax;
+          x1 = (real)l; y1 = 0.0;
+          CoorXform(&x1, &y1, rDegQuad - planet2[i]);
+          x1 += planet1[i] + rDegQuad;
+          if (y1 < 0.0)
+            y1 += rDegQuad;
+          else
+            y1 -= rDegQuad;
         }
         WireMapCalc(x1, y1, &x, &y, &z, fSky, rT, rz, deg);
-        if (j > 0)
+        if (j > 0 && (k < arDir || NAbs(zold-z) < rz))
           WireLine(xold, yold, zold, x, y, z);
         xold = x; yold = y; zold = z;
       }
     }
-    // Draw astro-graph lines for minor house cusps, if unrestricted.
+    // Draw astrocartography lines for minor house cusps, if unrestricted.
     for (k = 1; k <= cSign; k++) {
       if (FIgnore(cuspLo-1 + k) ||
         (k == sAri && chouse[k] == is.Asc) ||
@@ -2010,7 +2329,7 @@ void WireDrawGlobe(flag fSky, real deg)
         (k == sLib && chouse[k] == Mod(is.Asc + rDegHalf)) ||
         (k == sCan && chouse[k] == Mod(is.MC  + rDegHalf)))
         continue;
-      DrawColor(kObjB[cuspLo-1 + k]);
+      DrawColor(kSignB(k));
       for (j = 0; j <= nDegHalf; j++) {
         x1 = 0.0; y1 = (real)j;
         CoorXform(&x1, &y1, rDegQuad - chouse3[k]);
@@ -2020,18 +2339,45 @@ void WireDrawGlobe(flag fSky, real deg)
         WireMapCalc(x1, y1, &x, &y, &z, fSky, rT, rz, deg);
         if (j > 0)
           WireLine(xold, yold, zold, x, y, z);
+        if (j == 90) {
+          // Draw glyph to label minor house cusp line.
+          gi.zDefault = z - unit/2;
+          DrawObject(cuspLo-1 + k, x, y);
+          WireOctahedron(x, y, z, gi.nScale);
+        }
         xold = x; yold = y; zold = z;
       }
     }
-  }
+  } // i
 
-  // Now that we have the coordinates of each object, draw their glyphs.
+  // Compute coordinates of each object, and draw their glyphs.
 
-  for (i = 0; i <= is.nObj; i++) if (FProper(i)) {
-    gi.zDefault = O[i];
-    DrawObject(i, M[i], N[i]);
-    DrawColor(kObjB[i]);
-    WireOctahedron(X[i], Y[i], Z[i], gi.nScale);
+  for (j = 0; j < arDir; j++) {
+    k = (!j ? arDes : (k == 1 ? arIC : (k == 2 ? arAsc : arMC)));
+    if (k != arMC && (fSky || ignorez[k]))
+      continue;
+    for (i = 0; i <= is.nObj; i++) if (FProper(i)) {
+      x1 = planet1[i]; y1 = planet2[i];
+      if (k == arIC) {
+        x1 = Mod(x1 + rDegHalf);
+        neg(y1);
+      } else if (k == arAsc) {
+        x1 = Mod(x1 - rDegQuad);
+        y1 = 0.0;
+      } else if (k == arDes) {
+        x1 = Mod(x1 + rDegQuad);
+        y1 = 0.0;
+      }
+      WireMapCalc(x1, y1, &u, &v, &w, fSky, rT, rz, deg);
+      gi.zDefault = w - unit/2;
+      if (k > arMC) {
+        l = kObjB[i]; kObjB[i] = gi.kiLite;
+      }
+      DrawObject(i, u, v);
+      if (k > arMC)
+        kObjB[i] = l;
+      WireOctahedron(u, v, w, gi.nScale);
+    }
   }
 }
 
@@ -2048,6 +2394,8 @@ void WireChartOrbit()
   ES es, *pes1, *pes2;
   int xT, yT, zT, x2, y2, z2;
 #endif
+  PT3R vCross, ptCen;
+  real tilt, rot;
 
   // Compute coordinates of planets.
   i = gi.nScale/gi.nScaleT;
@@ -2090,6 +2438,11 @@ void WireChartOrbit()
         if (grid->n[i][j] && FProper(i) && FProper(j)) {
           DrawColor(kAspB[grid->n[i][j]]);
           WireLine(x[i], y[i], z[i], x[j], y[j], z[j]);
+          if (gs.fLabelAsp) {
+            gi.zDefault = (z[i] + z[j]) >> 1;
+            DrawAspect2(grid->n[i][j],
+              (x[i] + x[j]) >> 1, (y[i] + y[j]) >> 1, i, j);
+          }
         }
   }
 
@@ -2098,6 +2451,7 @@ void WireChartOrbit()
     gi.rgspace = RgAllocate(oNorm1*gs.cspace, PT3R, "orbits");
     if (gi.rgspace == NULL)
       return;
+    gi.cspace = gi.ispace = 0;
   }
 
   // Draw planets.
@@ -2124,8 +2478,6 @@ void WireChartOrbit()
         (FBetween(i, oJup, oNep) && ignore[i + oJuC - oJup] ? i :
         (i == oHau || i == oQua ? i : -1));
       if (j >= 0) {
-        PT3R vCross, ptCen;
-        real tilt, rot;
         j = IObjRing(j);
         vCross = rgvObjRing[j];
         // Adjust ring vector appropriately if in sidereal zodiac.
@@ -2143,11 +2495,11 @@ void WireChartOrbit()
         rot = VAngleD(&vCross, &ptCen);
         if (rgvObjRing[j].y < 0.0)
           rot = rDegMax - rot;
-        k = (int)(rgrObjRing[j][0] / rAUToKm * sx);
-        WireCircle(x[i], y[i], z[i], (real)k, tilt, rot);
+        rT = rgrObjRing[j][0] / rAUToKm * sx;
+        WireCircle(x[i], y[i], z[i], rT, tilt, rot);
         if (rgrObjRing[j][1] > 0.0) {
-          k = (int)(rgrObjRing[j][1] / rAUToKm * sx);
-          WireCircle(x[i], y[i], z[i], (real)k, tilt, rot);
+          rT = rgrObjRing[j][1] / rAUToKm * sx;
+          WireCircle(x[i], y[i], z[i], rT, tilt, rot);
         }
       }
       DrawColor(kObjB[i]);
@@ -2183,6 +2535,32 @@ void WireChartOrbit()
     }
   }
   OrbitRecord();
+
+  // Draw planetary moons in orbit around their planet glyphs.
+  if (gs.fMoonWheel) {
+    char sz[cchSzDef], chT;
+    EnumMoonsRing(NULL, NULL, NULL, NULL, NULL, fFalse);
+    while (EnumMoonsRing(&i, &j, &rT, &k, &chT, fFalse)) {
+      rT = rT - planet[j] + rDegHalf;
+      xd = x[j] + NCosD(7*gi.nScale, rT);
+      yd = y[j] + NSinD(7*gi.nScale, rT);
+      sprintf(sz, "%c", chT);
+      DrawColor(k);
+      if (!gs.fAlt || j > oVes)
+        i = 0;
+      else
+        i = (int)(RLog10(RObjDiam(j)) * (real)gi.nScaleT);
+      i = Max(i, 3 * gi.nScaleT);
+      rT = RObjDiam(j) / 2.0 / rAUToKm;
+      k = (int)(rT * sx);
+      i = Max(i, k);
+      if (i < 12 * gi.nScaleT)
+        gi.zDefault = z[j] + (i + 5*gi.nScaleT);
+      else
+        gi.zDefault = z[j];
+      DrawSz(sz, xd, yd, dtScale2);
+    }
+  }
 
 #ifdef SWISS
   // Draw extra stars.
@@ -2290,7 +2668,7 @@ void WireSphereEarth(real azi, real alt, int zr, int *xp, int *yp, int *zp)
 
 void WireChartSphere()
 {
-  char sz[cchSzDef];
+  char sz[cchSzDef], chT;
   int rgx[objMax], rgy[objMax], rgz[objMax], zGlyph,
     cChart, iChart, zr, xo = 0, yo = 0, zo = 0, xp, yp, zp, i, j, k, k2, nSav;
   flag fHouse3D = !us.fHouse3D, fNoHorizon;
@@ -2581,6 +2959,19 @@ void WireChartSphere()
       WireOctahedron(rgx[i], rgy[i], rgz[i], gi.nScale);
     }
 
+    // Draw planetary moons in orbit around their planet glyphs.
+    if (gs.fMoonWheel) {
+      EnumMoonsRing(NULL, NULL, NULL, NULL, NULL, fTrue);
+      while (EnumMoonsRing(&i, &j, &rT, &k, &chT, fTrue)) {
+        xp = rgx[j] + NCosD(zGlyph, rT);
+        yp = rgy[j] + NSinD(zGlyph, rT);
+        sprintf(sz, "%c", chT);
+        DrawColor(k);
+        gi.zDefault = rgz[j] - zGlyph;
+        DrawSz(sz, xp, yp, dtScale2);
+      }
+    }
+
     // Draw lines connecting planets which have aspects between them.
     if (!FCreateGrid(fFalse))
       return;
@@ -2591,8 +2982,8 @@ void WireChartSphere()
           WireLine(rgx[i], rgy[i], rgz[i], rgx[j], rgy[j], rgz[j]);
           if (gs.fLabelAsp) {
             gi.zDefault = (rgz[i] + rgz[j]) >> 1;
-            DrawAspect(grid->n[i][j],
-              (rgx[i] + rgx[j]) >> 1, (rgy[i] + rgy[j]) >> 1);
+            DrawAspect2(grid->n[i][j],
+              (rgx[i] + rgx[j]) >> 1, (rgy[i] + rgy[j]) >> 1, i, j);
           }
         }
 

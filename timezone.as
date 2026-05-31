@@ -1,6 +1,6 @@
-@AZ780  ; Astrolog 7.80 time zone changes.
+@AZ800  ; Astrolog 8.00 time zone changes.
 
-; Time zone changes composed using data from TZ database version "2025b": https://data.iana.org/time-zones/tz-link.html
+; Time zone changes composed using data from TZ database version "2026b": https://data.iana.org/time-zones/tz-link.html
 ; From TZ database file LICENSE:
 ;   all files in the tz code and data are in the public domain.
 ; (Astrolog's processing and use of this data is still under Astrolog's GPL license.)
@@ -1249,8 +1249,8 @@ Mexico	16
 2002	2022	Apr	Sun>=1	2	1
 2002	2022	Oct	lastSun	2	0
 Moldova	2
-1997	max	Mar	lastSun	2	1
-1997	max	Oct	lastSun	3	0
+1997	2021	Mar	lastSun	2	1
+1997	2021	Oct	lastSun	3	0
 Moncton	13
 1933	1935	Jun	Sun>=8	1	1
 1933	1935	Sep	Sun>=8	1	0
@@ -2361,7 +2361,7 @@ Zion	85
 ; Column 5: Day this time zone offset changes (absent = 1st of month)
 ; Column 6: Hour this time zone offset changes (absent = 0:00, default = local time, s = standard time, u = UTC)
 
--YY2 414 2293
+-YY2 417 2324
 Africa/Abidjan	2
 0:16:08	-	1912
 0	-
@@ -2907,10 +2907,37 @@ America/Chihuahua	9
 6	-	1998	Apr	0	3
 7	Mexico	2022	Oct	30	2
 6	-
+America/Ciudad_Juarez	11
+7:05:56	-	1922	Jan	1	7u
+7	-	1927	Jun	10
+6	-	1930	Nov	15
+7	Mexico	1932	Apr
+6	-	1996
+6	Mexico	1998
+6	-	1998	Apr	0	3
+7	Mexico	2010
+7	US	2022	Oct	30	2
+6	-	2022	Nov	30
+7	US
 America/Costa_Rica	3
 5:36:13	-	1890
 5:36:13	-	1921	Jan	15
 6	CR
+America/Coyhaique	14
+4:48:16	-	1890
+4:42:45	-	1910	Jan	10
+5	-	1916	Jul
+4:42:45	-	1918	Sep	10
+4	-	1919	Jul
+4:42:45	-	1927	Sep
+5	Chile	1932	Sep
+4	-	1942	Jun
+5	-	1942	Aug
+4	-	1946	Aug	28	24
+5	1	1947	Mar	31	24
+5	-	1947	May	21	23
+4	Chile	2025	Mar	20
+3	-
 America/Creston	4
 7:46:04	-	1884
 7	-	1916	Oct
@@ -3352,6 +3379,12 @@ America/North_Dakota/New_Salem	3
 6:45:39	-	1883	Nov	18	19u
 7	US	2003	Oct	26	2
 6	US
+America/Nuuk	5
+3:26:56	-	1916	Jul	28
+3	-	1980	Apr	6	2
+3	EU	2023	Mar	26	1u
+2	-	2023	Oct	29	1u
+2	EU
 America/Ojinaga	11
 6:57:40	-	1922	Jan	1	7u
 7	-	1927	Jun	10
@@ -3542,7 +3575,7 @@ America/Thunder_Bay	6
 5	Canada	1970
 5	Toronto	1974
 5	Canada
-America/Tijuana	25
+America/Tijuana	23
 7:48:04	-	1922	Jan	1	7u
 7	-	1924
 8	-	1927	Jun	10
@@ -3560,9 +3593,7 @@ America/Tijuana	25
 8	1	1951	Sep	30	2
 8	-	1952	Apr	27	2
 8	1	1952	Sep	28	2
-8	-	1954
-8	CA	1961
-8	-	1976
+8	CA	1967
 8	US	1996
 8	Mexico	2001
 8	US	2002	Feb	20
@@ -3578,10 +3609,12 @@ America/Toronto	6
 America/Tortola	2
 4:18:28	-	1911	Jul
 4	-
-America/Vancouver	3
+America/Vancouver	5
 8:12:28	-	1884
 8	Vanc	1987
-8	Canada
+8	Canada	2026	Mar	9
+8	1	2026	Nov	1	2
+7	-
 America/Whitehorse	6
 9:00:12	-	1900	Aug	20
 9	NT_YK	1965
@@ -4442,7 +4475,7 @@ Europe/Budapest	6
 -1	C-Eur	1945
 -1	Hungary	1984
 -1	EU
-Europe/Chisinau	10
+Europe/Chisinau	11
 -1:55:20	-	1880
 -1:55	-	1918	Feb	15
 -1:44:24	-	1931	Jul	24
@@ -4452,7 +4485,8 @@ Europe/Chisinau	10
 -3	Russia	1990	May	6	2
 -2	Russia	1992
 -2	E-Eur	1997
--2	Moldova
+-2	Moldova	2022
+-2	EU
 Europe/Copenhagen	6
 -0:50:20	-	1890
 -0:50:20	-	1894
@@ -4526,16 +4560,6 @@ Europe/Kaliningrad	7
 -2	Russia	2011	Mar	27	2s
 -3	-	2014	Oct	26	2s
 -2	-
-Europe/Kiev	9
--2:02:04	-	1880
--2:02:04	-	1924	May	2
--2	-	1930	Jun	21
--3	-	1941	Sep	20
--1	C-Eur	1943	Nov	6
--3	Russia	1990	Jul	1	2
--2	1	1991	Sep	29	3
--2	C-Eur	1996	May	13
--2	EU
 Europe/Kirov	8
 -3:18:48	-	1919	Jul	1	0u
 -3	-	1930	Jun	21
@@ -4545,6 +4569,16 @@ Europe/Kirov	8
 -3	Russia	2011	Mar	27	2s
 -4	-	2014	Oct	26	2s
 -3	-
+Europe/Kyiv	9
+-2:02:04	-	1880
+-2:02:04	-	1924	May	2
+-2	-	1930	Jun	21
+-3	-	1941	Sep	20
+-1	C-Eur	1943	Nov	6
+-3	Russia	1990	Jul	1	2
+-2	1	1991	Sep	29	3
+-2	C-Eur	1996	May	13
+-2	EU
 Europe/Lisbon	8
 0:36:45	-	1884
 0:36:45	-	1912	Jan	1	0u
@@ -5074,7 +5108,7 @@ Pacific/Wallis	2
 ; Column 1: Time zone from atlas.as
 ; Column 2: Time zone change entry list to use from Part 2
 
--YY3 11
+-YY3 12
 America/Kralendijk	America/Curacao
 America/Lower_Princes	America/Curacao
 America/Marigot	America/Port_of_Spain
@@ -5083,6 +5117,7 @@ Arctic/Longyearbyen	Europe/Oslo
 Europe/Bratislava	Europe/Prague
 Europe/Busingen	Europe/Zurich
 Europe/Mariehamn	Europe/Helsinki
+Europe/Kiev	Europe/Kyiv
 Europe/Podgorica	Europe/Belgrade
 Europe/San_Marino	Europe/Rome
 Europe/Vatican	Europe/Rome

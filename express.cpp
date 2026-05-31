@@ -1,8 +1,8 @@
 /*
-** Astrolog (Version 7.80) File: express.cpp
+** Astrolog (Version 8.00) File: express.cpp
 **
 ** IMPORTANT NOTICE: Astrolog and all chart display routines and anything
-** not enumerated below used in this program are Copyright (C) 1991-2025 by
+** not enumerated below used in this program are Copyright (C) 1991-2026 by
 ** Walter D. Pullen (Astara@msn.com, http://www.astrolog.org/astrolog.htm).
 ** Permission is granted to freely use, modify, and distribute these
 ** routines provided these credits and notices remain unmodified with any
@@ -48,7 +48,7 @@
 ** Initial programming 8/28-30/1991.
 ** X Window graphics initially programmed 10/23-29/1991.
 ** PostScript graphics initially programmed 11/29-30/1992.
-** Last code change made 6/19/2025.
+** Last code change made 5/28/2026.
 */
 
 #include "astrolog.h"
@@ -61,9 +61,9 @@
 ******************************************************************************
 */
 
-#define cfunA 470
+#define cfunA 484
 #ifdef GRAPH
-#define cfunX 70
+#define cfunX 73
 #else
 #define cfunX 0
 #endif
@@ -73,7 +73,7 @@
 #define cfunI 0
 #endif
 #ifdef WIN
-#define cfunW 10
+#define cfunW 12
 #else
 #define cfunW 0
 #endif
@@ -226,6 +226,7 @@ enum _functionindex {
   funFloor,
   funFract,
   funDMS,
+  funHMS,
   funRnd,
   funRgb,
   funRgbR,
@@ -291,6 +292,7 @@ enum _functionindex {
   funObjDiam,
   funObjDay,
   funObjAng,
+  funObjSig,
   funAspOn,
   funAspAng,
   funAspOrb,
@@ -304,6 +306,7 @@ enum _functionindex {
   funCusp5, funCusp3D5,
   funCusp6, funCusp3D6,
   funCuspInf,
+  funCuspSig,
   funSector,
   funSigRul,
   funSigRul2,
@@ -321,6 +324,7 @@ enum _functionindex {
   funLonDist,
   funLonDiff,
   funLonMid,
+  funLonMid2,
   funLonDeca,
   funLonNava,
   funLonDwad,
@@ -386,6 +390,8 @@ enum _functionindex {
   fun_P1,
   fun_N1,
   fun_80,
+  fun_I,
+  fun_I0,
   fun_I1,
   fun_zv,
   fun_zf,
@@ -396,6 +402,7 @@ enum _functionindex {
   fun_b,
   fun_b0,
   fun_b1,
+  fun_b2,
   fun_c,
   fun_c3,
   fun_c31,
@@ -409,6 +416,8 @@ enum _functionindex {
   fun_p0,
   fun_pd,
   fun_pC,
+  fun_pO,
+  fun_pc,
   fun_x,
   fun_1,
   fun_3,
@@ -417,6 +426,8 @@ enum _functionindex {
   fun_G,
   fun_J,
   fun_9,
+  fun_F,
+  fun_r,
   fun_YT,
   fun_YV,
   fun_Yf,
@@ -445,8 +456,10 @@ enum _functionindex {
   fun_YR0,
   fun_YR1,
   fun_YR2,
+  fun_YRp,
   fun_YRZ,
   fun_YR7,
+  fun_YRd,
   fun_Y5I1,
   fun_Y5I2,
 
@@ -471,6 +484,7 @@ enum _functionindex {
   fun_XU,
   fun_XC,
   fun_XQ,
+  fun_XQ0,
   fun_XN,
   fun_Xwx,
   fun_Xwy,
@@ -490,6 +504,7 @@ enum _functionindex {
   fun_XGx,
   fun_XGy,
   fun_XZ,
+  fun_Xkv,
   fun_YXG,
   fun_YXGc,
   fun_YXGu,
@@ -499,6 +514,7 @@ enum _functionindex {
   fun_YXGe,
   fun_YXe,
   fun_YXa,
+  fun_YXx,
   fun_YXf,
   fun_YXft,
   fun_YXfs,
@@ -546,6 +562,8 @@ enum _functionindex {
   fun_Wo,
   fun_Wo0,
   fun_Wo3,
+  fun_Wx,
+  fun_Wb,
   fun_WZ,
 #endif
 
@@ -570,6 +588,7 @@ enum _functionindex {
   funFor,
   funMacro,
   funSwitch,
+  funSwitch2,
   funRndSeed,
 
   // Variable assignment functions
@@ -645,6 +664,7 @@ CONST FUN rgfun[cfun] = {
 {funFloor, "Floor", 1, R_R},
 {funFract, "Fract", 1, R_R},
 {funDMS,   "DMS",   3, R_RRR},
+{funHMS,   "HMS",   3, R_RRR},
 {funRnd,   "Rnd",   2, I_II},
 {funRgb,   "Rgb",   3, I_III},
 {funRgbR,  "RgbR",  1, I_I},
@@ -846,6 +866,7 @@ CONST FUN rgfun[cfun] = {
 {funObjDiam, "ObjDiam",  1, R_I},
 {funObjDay,  "ObjDay",   1, R_I},
 {funObjAng,  "ObjAng",   1, R_I},
+{funObjSig,  "ObjSign",  1, I_I},
 {funAspOn,   "AspOn",    1, I_I},
 {funAspAng,  "AspAngle", 1, R_I},
 {funAspOrb,  "AspOrb",   1, R_I},
@@ -866,6 +887,7 @@ CONST FUN rgfun[cfun] = {
 {funCusp6,   "Cusp6",    1, R_I},
 {funCusp3D6, "Cusp3D6",  1, R_I},
 {funCuspInf, "HouseInf", 1, R_I},
+{funCuspSig, "CuspSign", 1, I_I},
 {funSector,  "PlusZone", 1, I_I},
 {funSigRul,  "SignRul",  1, I_I},
 {funSigRul2, "SignRul2", 1, I_I},
@@ -883,6 +905,7 @@ CONST FUN rgfun[cfun] = {
 {funLonDist, "LonDist",  2, R_RR},
 {funLonDiff, "LonDiff",  2, R_RR},
 {funLonMid,  "LonMid",   2, R_RR},
+{funLonMid2, "LonMid2",  3, R_RRR},
 {funLonDeca, "LonDecan", 1, R_R},
 {funLonNava, "LonNavam", 1, R_R},
 {funLonDwad, "LonDwad",  1, R_R},
@@ -948,6 +971,8 @@ CONST FUN rgfun[cfun] = {
 {fun_P1,  "_P1",  0, I_},
 {fun_N1,  "_N1",  0, I_},
 {fun_80,  "_80",  0, I_},
+{fun_I,   "_I",   0, I_},
+{fun_I0,  "_I0",  0, I_},
 {fun_I1,  "_I1",  0, I_},
 {fun_zv,  "_zv",  0, R_},
 {fun_zf,  "_zf",  0, R_},
@@ -958,6 +983,7 @@ CONST FUN rgfun[cfun] = {
 {fun_b,   "_b",   0, I_},
 {fun_b0,  "_b0",  0, I_},
 {fun_b1,  "_b1",  0, I_},
+{fun_b2,  "_b2",  0, I_},
 {fun_c,   "_c",   0, I_},
 {fun_c3,  "_c3",  0, I_},
 {fun_c31, "_c31", 0, I_},
@@ -971,6 +997,8 @@ CONST FUN rgfun[cfun] = {
 {fun_p0,  "_p0",  0, I_},
 {fun_pd,  "_pd",  0, R_},
 {fun_pC,  "_pC",  0, R_},
+{fun_pO,  "_pO",  0, I_},
+{fun_pc,  "_pcc", 0, I_},
 {fun_x,   "_x",   0, R_},
 {fun_1,   "_1",   0, I_},
 {fun_3,   "_3",   0, I_},
@@ -979,6 +1007,8 @@ CONST FUN rgfun[cfun] = {
 {fun_G,   "_G",   0, I_},
 {fun_J,   "_J",   0, I_},
 {fun_9,   "_9",   0, I_},
+{fun_F,   "_FF",  1, R_I},
+{fun_r,   "_r",   0, I_},
 {fun_YT,  "_YT",  0, I_},
 {fun_YV,  "_YV",  0, I_},
 {fun_Yf,  "_Yf",  0, I_},
@@ -1007,8 +1037,10 @@ CONST FUN rgfun[cfun] = {
 {fun_YR0, "_YR0", 1, I_I},
 {fun_YR1, "_YR1", 1, I_I},
 {fun_YR2, "_YR2", 1, I_I},
+{fun_YRp, "_YRp", 1, I_I},
 {fun_YRZ, "_YRZ", 1, I_I},
 {fun_YR7, "_YR7", 1, I_I},
+{fun_YRd, "_YRd", 0, I_},
 {fun_Y5I1, "_Y5I1", 0, I_},
 {fun_Y5I2, "_Y5I2", 0, I_},
 
@@ -1033,6 +1065,7 @@ CONST FUN rgfun[cfun] = {
 {fun_XU,   "_XU",   0, I_},
 {fun_XC,   "_XC",   0, I_},
 {fun_XQ,   "_XQ",   0, I_},
+{fun_XQ0,  "_XQ0",  0, I_},
 {fun_XN,   "_XN",   0, I_},
 {fun_Xwx,  "_Xwx",  0, I_},
 {fun_Xwy,  "_Xwy",  0, I_},
@@ -1052,6 +1085,7 @@ CONST FUN rgfun[cfun] = {
 {fun_XGx,  "_XGx",  0, R_},
 {fun_XGy,  "_XGy",  0, R_},
 {fun_XZ,   "_XZ",   0, I_},
+{fun_Xkv,  "_Xkv",  0, I_},
 {fun_YXG,  "_YXG",  0, I_},
 {fun_YXGc, "_YXGc", 0, I_},
 {fun_YXGu, "_YXGu", 0, I_},
@@ -1061,6 +1095,7 @@ CONST FUN rgfun[cfun] = {
 {fun_YXGe, "_YXGe", 0, I_},
 {fun_YXe,  "_YXe",  0, I_},
 {fun_YXa,  "_YXa",  0, I_},
+{fun_YXx,  "_YXx",  0, I_},
 {fun_YXf,  "_YXf",  0, I_},
 {fun_YXft, "_YXft", 0, I_},
 {fun_YXfs, "_YXfs", 0, I_},
@@ -1108,6 +1143,8 @@ CONST FUN rgfun[cfun] = {
 {fun_Wo,  "_Wo",  0, I_},
 {fun_Wo0, "_Wo0", 0, I_},
 {fun_Wo3, "_Wo3", 0, I_},
+{fun_Wx,  "_Wx",  0, I_},
+{fun_Wb,  "_Wb",  0, I_},
 {fun_WZ,  "_WZ",  0, I_},
 #endif
 
@@ -1132,6 +1169,7 @@ CONST FUN rgfun[cfun] = {
 {funFor,     "For",     4, I_IIIX},
 {funMacro,   "Macro",   1, E_I},
 {funSwitch,  "Switch",  1, I_I},
+{funSwitch2, "Switch2", 1, I_I},
 {funRndSeed, "RndSeed", 1, I_I},
 
 // Variable assignment functions
@@ -1180,29 +1218,6 @@ void UpperRgch(char *rgch, int cch)
     *rgch = ChCap(*rgch);
     rgch++, cch--;
   }
-}
-
-
-// Parse and return a number contained in a range of characters.
-
-long LFromRgch(CONST char *rgch, int cch)
-{
-  char sz[cchSzDef], *pch;
-  long l;
-  flag fBinary;
-
-  CopyRgchToSz(rgch, cch, sz, cchSzDef);
-  if (*sz != '#')
-    return atol(sz);
-  fBinary = (*(sz+1) == '#');
-
-  // Strings starting with "#" are considered hexadecimal numbers.
-  // Strings starting with "##" are considered binary numbers.
-  l = 0;
-  for (pch = sz+1+fBinary; *pch; pch++)
-    l = fBinary ? ((l << 1) | (*pch == '1')) :
-      ((l << 4) | NHex2(ChCap(*pch)));
-  return l;
 }
 
 
@@ -1327,6 +1342,7 @@ flag FEvalFunction(int ifun, PAR *rgpar, char *rgpchEval[2])
   case funFloor: r = RFloor(r1); break;
   case funFract: r = r1 - RFloor(r1); break;
   case funDMS:   r = DMS(r1, r2, r3); break;
+  case funHMS:   r = HMS(r1, r2, r3) * 15.0; break;
   case funRnd:   n = (rand() & 16383) * (n2 - n1 + 1) / 16384 + n1; break;
   case funRgb:   n = Rgb(n1, n2, n3); break;
   case funRgbR:  n = RgbR(n1); break;
@@ -1532,6 +1548,7 @@ flag FEvalFunction(int ifun, PAR *rgpar, char *rgpchEval[2])
   case funObjDay:  r = FNorm(n1)        ? rObjDay[n1]   : 0.0; break;
   case funObjAng:  r = FValidObj(n1) ? RAtnD((RObjDiam(n1) / 2.0) /
     (cp0.dist[n1] * rAUToKm))*2.0: 0.0; break;
+  case funObjSig:  n = FValidObj(n1) ? SFromZ(planet[n1]) : 0; break;
   case funAspOn:   n = FValidAspect(n1) ? !FIgnoreA(n1) : 0;   break;
   case funAspAng:  r = FValidAspect(n1) ? rAspAngle[n1] : 0.0; break;
   case funAspOrb:  r = FValidAspect(n1) ? rAspOrb[n1]   : 0.0; break;
@@ -1552,6 +1569,7 @@ flag FEvalFunction(int ifun, PAR *rgpar, char *rgpchEval[2])
   case funCusp6:   r = FValidSign(n1)   ? cp6.cusp[n1]  : 0.0; break;
   case funCusp3D6: r = FValidSign(n1)   ? cp6.cusp3[n1] : 0.0; break;
   case funCuspInf: r = FBetween(n1, 1, cSign+5) ? rHouseInf[n1] : 0.0; break;
+  case funCuspSig: n = FValidSign(n1) ? SFromZ(chouse[n1]) : 0; break;
   case funSector:  n = FSector(n1)    ? pluszone[n1]   : 0;  break;
   case funSigRul:  n = FValidSign(n1) ? rules[n1]      : -1; break;
   case funSigRul2: n = FValidSign(n1) ? rules2[n1]     : -1; break;
@@ -1570,6 +1588,7 @@ flag FEvalFunction(int ifun, PAR *rgpar, char *rgpchEval[2])
   case funLonDist: r = MinDistance(r1, r2); break;
   case funLonDiff: r = MinDifference(r1, r2); break;
   case funLonMid:  r = Midpoint(r1, r2); break;
+  case funLonMid2: r = Midpoint2(r1, r2, r3); break;
   case funLonDeca: r = Decan(r1); break;
   case funLonNava: r = Navamsa(r1); break;
   case funLonDwad: r = Dwad(r1); break;
@@ -1590,9 +1609,9 @@ flag FEvalFunction(int ifun, PAR *rgpar, char *rgpchEval[2])
   case funAspect2: n = GetAspect(cp1.obj, cp2.obj, cp1.alt, cp2.alt, cp1.dir,
     cp2.dir, n1, n2, &r); SetReal(n3, r); break;
   case funParall:  n = GetParallel(planet, planet, planetalt, planetalt,
-    retalt, retalt, n1, n2, &r); SetReal(n3, r); break;
-  case funParall2: n = GetParallel(cp1.obj, cp2.obj, cp1.alt, cp2.alt,
-    cp1.diralt, cp2.diralt, n1, n2, &r); SetReal(n3, r); break;
+    ret, ret, retalt, retalt, n1, n2, &r); SetReal(n3, r); break;
+  case funParall2: n = GetParallel(cp1.obj, cp2.obj, cp1.alt, cp2.alt, cp1.dir,
+    cp2.dir, cp1.diralt, cp2.diralt, n1, n2, &r); SetReal(n3, r); break;
   case funGridNam: n = grid != NULL && FValidObj(n1) && FValidObj(n2) ?
     grid->n[n1][n2] : 0; break;
   case funGridVal: r = grid != NULL && FValidObj(n1) && FValidObj(n2) ?
@@ -1672,6 +1691,8 @@ flag FEvalFunction(int ifun, PAR *rgpar, char *rgpchEval[2])
   case fun_P1:  n = us.nArabicParts;    break;
   case fun_N1:  n = us.nAtlasList;      break;
   case fun_80:  n = us.fMoonChartSep;   break;
+  case fun_I:   n = us.fInterpret;      break;
+  case fun_I0:  n = us.fSabian;         break;
   case fun_I1:  n = us.nScreenWidth;    break;
   case fun_zv:  r = us.elvDef;        break;
   case fun_zf:  r = us.tmpDef;        break;
@@ -1682,6 +1703,7 @@ flag FEvalFunction(int ifun, PAR *rgpar, char *rgpchEval[2])
   case fun_b:   n = us.fEphemeris;    break;
   case fun_b0:  n = us.fSeconds;      break;
   case fun_b1:  n = us.fSecond1K;     break;
+  case fun_b2:  n = us.fSecondHide;   break;
   case fun_c:   n = us.nHouseSystem;  break;
   case fun_c3:  n = us.fHouse3D;      break;
   case fun_c31: n = us.nHouse3D;      break;
@@ -1695,6 +1717,8 @@ flag FEvalFunction(int ifun, PAR *rgpar, char *rgpchEval[2])
   case fun_p0:  n = us.nProgress;     break;
   case fun_pd:  r = us.rProgDay;      break;
   case fun_pC:  r = us.rProgCusp;     break;
+  case fun_pO:  n = us.objProgArc;    break;
+  case fun_pc:  n = us.fProgRAMC;     break;
   case fun_x:   r = us.rHarmonic;     break;
   case fun_1:   n = us.objOnAsc;      break;
   case fun_3:   n = us.fDecan;        break;
@@ -1703,6 +1727,8 @@ flag FEvalFunction(int ifun, PAR *rgpar, char *rgpchEval[2])
   case fun_G:   n = us.fGeodetic;     break;
   case fun_J:   n = us.fIndian;       break;
   case fun_9:   n = us.fNavamsa;      break;
+  case fun_F:   r = FValidObj(n1) ? force[n1] : 0.0; break;
+  case fun_r:   n = us.nRel;        break;
   case fun_YT:  n = us.fTruePos;    break;
   case fun_YV:  n = us.fTopoPos;    break;
   case fun_Yf:  n = us.fRefract;    break;
@@ -1734,8 +1760,11 @@ flag FEvalFunction(int ifun, PAR *rgpar, char *rgpchEval[2])
     (n1 == 1 ? us.fIgnoreDirlen : -1); break;
   case fun_YR2: n = n1 == 0 ? us.fIgnoreAlt0   :
     (n1 == 1 ? us.fIgnoreDisequ : -1); break;
-  case fun_YRZ: n = FBetween(n1, 0, 3)     ? ignorez[n1] : -1; break;
-  case fun_YR7: n = FBetween(n1, 0, rrMax) ? ignore7[n1] : -1; break;
+  case fun_YRp: n = n1 == 0 ? ignorez[arVer]   :
+    (n1 == 1 ? ignorez[arAnt]   : -1); break;
+  case fun_YRZ: n = FBetween(n1, 0, arMax-1) ? ignorez[n1] : -1; break;
+  case fun_YR7: n = FBetween(n1, 0, rrMax-1) ? ignore7[n1] : -1; break;
+  case fun_YRd: n = us.nSignDiv; break;
   case fun_Y5I1: n = us.iExpADB; break;
   case fun_Y5I2: n = us.cExpADB; break;
 
@@ -1755,11 +1784,12 @@ flag FEvalFunction(int ifun, PAR *rgpar, char *rgpchEval[2])
   case fun_XL:   n = gs.fLabelCity;   break;
   case fun_Xj:   n = gs.fJetTrail;    break;
   case fun_XF:   n = gs.fConstel;     break;
-  case fun_XW0:  n = gs.fMollewide;   break;
+  case fun_XW0:  n = gs.fMollweide;   break;
   case fun_Xe:   n = gs.fEquator;     break;
   case fun_XU:   n = gs.fAllStar;     break;
   case fun_XC:   n = gs.fHouseExtra;  break;
   case fun_XQ:   n = gs.fKeepSquare;  break;
+  case fun_XQ0:  n = gs.fAutoScale;   break;
   case fun_XN:   n = gs.fAnimMap;     break;
   case fun_Xwx:  n = gs.xWin;         break;
   case fun_Xwy:  n = gs.yWin;         break;
@@ -1779,6 +1809,7 @@ flag FEvalFunction(int ifun, PAR *rgpar, char *rgpchEval[2])
   case fun_XGx:  r = gs.rRot;         break;
   case fun_XGy:  r = gs.rTilt;        break;
   case fun_XZ:   n = gs.objTrack;     break;
+  case fun_Xkv:  n = gs.kiDeca;       break;
   case fun_YXG:  n = nGlyphAll;       break;
   case fun_YXGc: n = gs.nGlyphCap;    break;
   case fun_YXGu: n = gs.nGlyphUra;    break;
@@ -1788,6 +1819,7 @@ flag FEvalFunction(int ifun, PAR *rgpar, char *rgpchEval[2])
   case fun_YXGe: n = gs.nGlyphEri;    break;
   case fun_YXe:  n = gs.fEcliptic;    break;
   case fun_YXa:  n = gs.nDashMax;     break;
+  case fun_YXx:  n = gs.nThickAdjust; break;
   case fun_YXf:  n = gs.nFontAll;     break;
   case fun_YXft: n = gs.nFontTxt;     break;
   case fun_YXfs: n = gs.nFontSig;     break;
@@ -1796,10 +1828,10 @@ flag FEvalFunction(int ifun, PAR *rgpar, char *rgpchEval[2])
   case fun_YXfa: n = gs.nFontAsp;     break;
   case fun_YXfn: n = gs.nFontNak;     break;
   case fun_YXW:  n = gs.nTriangles;   break;
-  case fun_YXK:  n = FValidColor(n1) ? rgbbmp[n1] : 0; break;
+  case fun_YXK:  n = FValidColor(n1) ? rgbbmp[n1]    : 0; break;
 
   // Graphics functions (manual drawing)
-  case funDCol: if (FValidColor(n1)) DrawColor(n1); n = n1; break;
+  case funDCol: if (FValidColorA(n1)) DrawColor(n1); n = n1; break;
   case funDDot: case funDSpot: case funDLine: case funDBox: case funDBlock:
   case funDCirc: case funDDisk:
     switch (ifun) {
@@ -1861,6 +1893,8 @@ flag FEvalFunction(int ifun, PAR *rgpar, char *rgpchEval[2])
   case fun_Wo:  n = wi.fAutoSave;     break;
   case fun_Wo0: n = wi.fAutoSaveNum;  break;
   case fun_Wo3: n = wi.fAutoSaveWire; break;
+  case fun_Wx:  n = wi.nAntialias;    break;
+  case fun_Wb:  n = wi.fBmpWindow;    break;
   case fun_WZ:  n = wi.fSaverRun;     break;
 #endif
 
@@ -1985,6 +2019,10 @@ flag FEvalFunction(int ifun, PAR *rgpar, char *rgpchEval[2])
     n = is.rgszMacro != NULL && FBetween(n1, 0, is.cszMacro) &&
       FSzSet(is.rgszMacro[n1]) && FProcessCommandLine(is.rgszMacro[n1]);
     break;
+  case funSwitch2:
+    n = xi.rgszExpStr != NULL && FBetween(n1, 0, xi.cszExpStr) &&
+      FSzSet(xi.rgszExpStr[n1]) && FProcessCommandLine(xi.rgszExpStr[n1]);
+    break;
   case funRndSeed:
     srand(n1);
     n = n1;
@@ -2075,7 +2113,9 @@ CONST char *PchGetParameter(CONST char *pchCur, PAR *rgpar, int ifun,
         rgpar[0].fReal = fTrue;
         goto LDone;
       }
-    rgpar[0].n = LFromRgch(pchParam, cch);
+
+    CopyRgchToSz(pchParam, cch, szT, cchSzMax);
+    rgpar[0].n = NFromSz(szT);
     rgpar[0].fReal = fFalse;
     goto LDone;
   }
@@ -2512,9 +2552,9 @@ flag FCreateTries()
 ******************************************************************************
 */
 
-// Format a string, in which expand escape sequences like "\n" to a newline,
-// "\A" to AstroExpression custom variable @a, and "\a" to the AstroExpression
-// custom string indexed by custom variable @a.
+// Format a string, in which expand escape sequences like "\A" to
+// AstroExpression custom variable @a, and "\a" to the AstroExpression custom
+// string indexed by custom variable @a.
 
 void FormatSz(CONST char *szIn, char *szFormat)
 {
@@ -2708,7 +2748,7 @@ flag ExpSetR(int i, real r)
 
 // Set an AstroExpression macro to a string.
 
-flag ExpSetMacro(int i, char *sz)
+flag ExpSetMacro(int i, CONST char *sz)
 {
   if (!FEnsureExpMacro(i+1))
     return fFalse;
@@ -2719,7 +2759,7 @@ flag ExpSetMacro(int i, char *sz)
 
 // Set an AstroExpression custom string or string list to the given input.
 
-flag ExpSetString(int i, char *sz, flag fList)
+flag ExpSetString(int i, CONST char *sz, flag fList)
 {
   int csz, j;
   char *szAlloc = NULL, *pch, *pchT;
@@ -2727,21 +2767,20 @@ flag ExpSetString(int i, char *sz, flag fList)
   // Simple case: Simply assign input string to AstroExpression string.
   if (!FEnsureExpStr(i+1))
     return fFalse;
-  if (!fList) {
-    FCloneSz(sz, &xi.rgszExpStr[i]);
-    return fTrue;
-  } else
-    FCloneSz(sz, &szAlloc);
+  if (!fList)
+    return FCloneSz(sz, &xi.rgszExpStr[i]);
+  if (!FCloneSz(sz, &szAlloc))
+    return fFalse;
 
   // Complex case: Use first character as delimeter within list of strings.
-  for (pch = sz, csz = 0; *pch; pch++)
-    if (*pch == sz[0])
+  for (pch = szAlloc, csz = 0; *pch; pch++)
+    if (*pch == szAlloc[0])
       csz++;
   if (csz <= 0)
     goto LDone;
-  pch = sz + 1;
+  pch = szAlloc + 1;
   for (j = 0; j < csz; j++) {
-    for (pchT = pch; *pchT && *pchT != sz[0]; pchT++)
+    for (pchT = pch; *pchT && *pchT != szAlloc[0]; pchT++)
       ;
     *pchT = chNull;
     if (!ExpSetString(i + j, pch, fFalse))
@@ -2750,6 +2789,33 @@ flag ExpSetString(int i, char *sz, flag fList)
   }
 LDone:
   DeallocateP(szAlloc);
+  return fTrue;
+}
+
+
+// Set a sequence of AstroExpression custom variables based on values
+// that are concatenated in the given input string.
+
+flag ExpSetNums(int i, CONST char *sz)
+{
+  CONST char *pch, *pchT;
+  flag fReal;
+
+  for (pch = sz; *pch; i++) {
+    fReal = fFalse;
+    for (pchT = pch; *pchT > ' '; pchT++)
+      if (*pchT == '.')
+        fReal = fTrue;
+    if (!fReal) {
+      if (!ExpSetN(i, NFromSz(pch)))
+        return fFalse;
+    } else {
+      if (!ExpSetR(i, RFromSz(pch)))
+        return fFalse;
+    }
+    for (pch = pchT; *pch && *pch <= ' '; pch++)
+      ;
+  }
   return fTrue;
 }
 

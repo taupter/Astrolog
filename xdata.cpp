@@ -1,8 +1,8 @@
 /*
-** Astrolog (Version 7.80) File: xdata.cpp
+** Astrolog (Version 8.00) File: xdata.cpp
 **
 ** IMPORTANT NOTICE: Astrolog and all chart display routines and anything
-** not enumerated below used in this program are Copyright (C) 1991-2025 by
+** not enumerated below used in this program are Copyright (C) 1991-2026 by
 ** Walter D. Pullen (Astara@msn.com, http://www.astrolog.org/astrolog.htm).
 ** Permission is granted to freely use, modify, and distribute these
 ** routines provided these credits and notices remain unmodified with any
@@ -48,7 +48,7 @@
 ** Initial programming 8/28-30/1991.
 ** X Window graphics initially programmed 10/23-29/1991.
 ** PostScript graphics initially programmed 11/29-30/1992.
-** Last code change made 6/19/2025.
+** Last code change made 5/28/2026.
 */
 
 #include "astrolog.h"
@@ -67,10 +67,10 @@ GS gs = {
 #else
   ftBmp,
 #endif
-  fTrue, fTrue, fFalse, fFalse, fTrue, fTrue, 000000, 0, 0, 0, 0, 0, 0,
+  fTrue, fTrue, fFalse, fFalse, fTrue, fTrue, 0x000000, 0, 0, 0, 0, 0, 0,
   fFalse, fTrue, fTrue, fFalse, fFalse, fFalse, fFalse, fFalse, fFalse,
-  fFalse, fFalse, fFalse, fFalse, fFalse, fFalse, fTrue, fFalse, fFalse,
-  fFalse, fFalse, fFalse,
+  fFalse, fFalse, fFalse, fFalse, fFalse, fFalse, fTrue, fTrue, fFalse,
+  fFalse, fFalse, fFalse, fFalse, fTrue,
   DEFAULTX, DEFAULTY,
 #ifdef WIN
   -10,
@@ -78,14 +78,14 @@ GS gs = {
   0,
 #endif
   200, 100, 0, 0, 0, 3, 1, 0, 0.0, 0.0, oMoo, BITMAPMODE, 25.0, 1, 0,
-  8.5, 11.0, NULL, 0, 25, 11, 1, NULL, oCore, 0.0, 1000, 0, 600,
-  1, 1, 1, 2, 2, 1, fFalse, fFalse, fTrue, 7, 0, NULL, NULL};
+  8.5, 11.0, NULL, 0, 25, 11, 1, kMax, NULL, oCore, 0.0, 1000, 0, 600,
+  1, 1, 1, 2, 2, 1, fFalse, fFalse, fTrue, 7, 0, 0, NULL, NULL};
 
 GI gi = {
-  0, fFalse, -1,
+  0, fFalse, 0, 0,
   NULL, 0, NULL, NULL, 0.0, fFalse, fFalse, 1.0,
-  2, 1, 1, 1, 1, 20, 10, 618229, kWhite, kBlack, kLtGray, kDkGray, 0, 0, 0, 0,
-  -1, -1, NULL, 0, 0, NULL, NULL,
+  2, 1, 1, 1, 1, 20, 10, 0xb19438, kWhite, kBlack, kLtGray, kDkGray,
+  0, 0, 0, 0, -1, -1, NULL, 0, 0, NULL, NULL,
   fTrue, {0, 0, 0, NULL}, {0, 0, 0, NULL}, {0, 0, 0, NULL}, {0, 0, 0, NULL},
   {0, 0, 0, NULL},
 #ifdef SWISS
@@ -98,10 +98,13 @@ GI gi = {
   NULL, 0, 0, 0, 0, 0, 0, 0, 0,
 #endif
 #ifdef PS
-  fFalse, 0, fFalse, 0, -1, 1.0,
+  0, fFalse, 0, -1, 1,
 #endif
 #ifdef META
   NULL, MAXMETA, NULL, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+#endif
+#ifdef SVG
+  kMax, 0,
 #endif
 #ifdef WIRE
   NULL, 0, 0, -1, 0,
@@ -110,16 +113,21 @@ GI gi = {
 
 #ifdef WIN
 WI wi = {
-  (HINSTANCE)NULL, (HWND)NULL, (HWND)NULL, (HMENU)NULL, (HACCEL)NULL, hdcNil,
-  hdcNil, hdcNil, (HWND)NULL, (HPEN)NULL, (HBRUSH)NULL, (HFONT)NULL,
-  (HBITMAP)NULL, (HBITMAP)NULL, (HBITMAP)NULL, (HANDLE)NULL,
-  0, 0, 0, 0, 0, 0, 0, -1, -1,
-  0, 0, 0, -1, fFalse, fTrue, fFalse, fFalse, fTrue, fFalse, fFalse, fFalse,
-  1, fFalse, {0, 0, 0, 0}, fFalse, fFalse, {0, 0, 0, NULL},
+  (HINSTANCE)NULL, (HWND)NULL, (HWND)NULL, (HMENU)NULL, (HMENU)NULL,
+  (HACCEL)NULL, hdcNil, hdcNil, hdcNil, (HWND)NULL, (HPEN)NULL, (HBRUSH)NULL,
+  (HFONT)NULL, (HBITMAP)NULL, (HBITMAP)NULL, (HBITMAP)NULL, (HANDLE)NULL,
+  0, 0, 0, 0, 0, 0, 0, -1, -1, 1, 0, 0, 0, -1,
+  fFalse, fTrue, fFalse, fFalse, fTrue, fFalse, fFalse, fFalse, fFalse,
+  1, fFalse, {0, 0, 0, 0}, fFalse, fFalse, {0, 0, 0, NULL}, {0, 0, 0, NULL},
+  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+  {0,0,0,0,0,0,0,0},
 
   // Window user settings.
-  fTrue, fTrue, fFalse, fTrue, fFalse, fFalse, fFalse, fFalse, fFalse, fFalse,
-  fFalse, 0, 1000};
+  fTrue, fTrue, fFalse, fTrue, fFalse, fFalse, fFalse, fFalse, fTrue, fFalse,
+  fFalse, fFalse, 6, 0, 1000};
 
 OPENFILENAME ofn = {
   sizeof(OPENFILENAME), (HWND)NULL, (HINSTANCE)NULL, NULL, NULL, 0, 1, NULL,
@@ -145,25 +153,29 @@ char *szFileTemp = szFileTempCore;
 WI wi = {
   (HINSTANCE)NULL, (HWND)NULL, (HWND)NULL, hdcNil, hdcNil, (HPEN)NULL,
   (HBRUSH)NULL, (HBITMAP)NULL, (HBITMAP)NULL, (HBITMAP)NULL,
-  0, 0, fFalse, fFalse, fFalse, fFalse, fFalse, 0, 0, 0,
+  0, 0, 1, fFalse, fFalse, fFalse, fFalse, fFalse, 0, 0, 0,
   {0, 0, 0, NULL}};
 #endif
 
 // Color tables for Astrolog's graphics palette.
 
-CONST KV rgbbmpDef[cColor] = {
-  0x000000, 0x00007F, 0x007F00, 0x007F7F,
-  0x7F0000, 0x7F007F, 0x7F7F00, 0xBFBFBF,
-  0x7F7F7F, 0x0000FF, 0x00FF00, 0x00FFFF,
-  0xFF0000, 0xFF00FF, 0xFFFF00, 0xFFFFFF};
-CONST KV rgbbmpDef2[cColor] = {
-  0x000000, 0x00009F, 0x007F00, 0x007F7F,
-  0x7F0000, 0x9F009F, 0x7F7F00, 0xBFBFBF,
-  0x7F7F7F, 0x0000FF, 0x009F00, 0x009F9F,
-  0xFF0000, 0xFF00FF, 0x9F9F00, 0xFFFFFF};
-KV rgbbmp[cColor];
+CONST KV rgbbmpDef[cColor2] = {
+  0x000000, 0x00007f, 0x007f00, 0x007f7f, // Main colors
+  0x7f0000, 0x7f007f, 0x7f7f00, 0xbfbfbf,
+  0x7f7f7f, 0x0000ff, 0x00ff00, 0x00ffff,
+  0xff0000, 0xff00ff, 0xffff00, 0xffffff,
+  0x3f3f3f, 0x007fff, 0x7f7fff, 0x003f7f, // Extra colors
+  0xff3f3f, 0x008000, 0x00a5ff, 0xdf3eff, 0xff3a00, 0xcc0099}; // Ray colors
+CONST KV rgbbmpDef2[cColor2] = {
+  0x000000, 0x00009f, 0x007f00, 0x007f7f, // Main colors
+  0x7f0000, 0x9f009f, 0x7f7f00, 0xbfbfbf,
+  0x7f7f7f, 0x0000ff, 0x009f00, 0x009f9f,
+  0xff0000, 0xff00ff, 0x9f9f00, 0xffffff,
+  0x3f3f3f, 0x007fff, 0x7f7fff, 0x003f7f, // Extra colors
+  0x701919, 0x008000, 0x00a5ff, 0xdf3eff, 0xff3a00, 0xcc0099}; // Ray colors
+KV rgbbmp[cColor2], rgbbmpRay[cRay+2];
 #ifdef X11
-KV rgbind[cColor], fg, bg;
+KV rgbind[cColor2], fg, bg;
 #endif
 #ifdef WIN
 CONST int ikPalette[cColor] =
@@ -190,10 +202,11 @@ KI kMainB[9], kRainbowB[cRainbow+1], kElemB[cElem], kAspB[cAspect+1],
   kObjB[objMax], kRayB[cRay+2];
 
 CONST char *rgszFontName[cFont] = {szAppNameCore, "Wingdings", "Astro",
-  "EnigmaAstrology", "HamburgSymbols", "Astronomicon",
-  "Courier New", "Consolas", "Arial", "Hanks Nakshatra"};
-CONST char rgszFontAllow[6][cFont+1] = {"0-----67--", "0123456---",
-  "0----5678-", "0-234567--", "0-2345678-", "0-----6789"};
+  "EnigmaAstrology", "HamburgSymbols", "Astronomicon", "StarFont Sans",
+  "StarFont Serif", "Hanks Nakshatra", "Arial", "Courier New", "Consolas",
+  "Lucida Console", "Cascadia Mono Regular"};
+CONST char rgszFontAllow[6][cFont+1] = {"0---------ABCD", "01234567--ABCD",
+  "01---5---9ABCD", "0-234567--ABCD", "0-234567--AB--", "0-------89ABCD"};
 
 CONST real rgrObjRing[oNep-oJup+3][2] = {
   {129000.0, 0.0},      // Jupiter main ring outer radius
@@ -201,7 +214,7 @@ CONST real rgrObjRing[oNep-oJup+3][2] = {
   {51149.0,  0.0},      // Uranus "E" ring outer radius
   {53200.0,  62932.0},  // Neptune Adams ring, Lassell ring inner radius
   {2287.0,   0.0},      // Haumea ring radius
-  {2520.0,   4057.0}};  // Quaoar ring radius
+  {2520.0,   4057.0}};  // Quaoar rings radius
 CONST PT3R rgvObjRing[oNep-oJup+3] = {
   {-0.0133361,  0.0359933, -0.9992630},   // Jupiter ring vector
   {-0.0833346, -0.4629964, -0.8824339},   // Saturn  ring vector
@@ -409,9 +422,9 @@ CONST char *szDrawObjectDef2[objMaxG] = {
   "", "", "", "", "", "", "", "", "", "", "", "",
   "", "", "", "", "", "", "", "",
   "", "", "", "", "", "", "", "", "", "",          // Stars
-  "", "", "", "", "", "", "", "", "", "", 
-  "", "", "", "", "", "", "", "", "", "", 
-  "", "", "", "", "", "", "", "", "", "", 
+  "", "", "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "", "", "",
   "", "", "", "", "", "", "", "", "", "",
   "",  // Uranus #2
   "",  // Pluto  #2

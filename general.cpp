@@ -1,8 +1,8 @@
 /*
-** Astrolog (Version 7.80) File: general.cpp
+** Astrolog (Version 8.00) File: general.cpp
 **
 ** IMPORTANT NOTICE: Astrolog and all chart display routines and anything
-** not enumerated below used in this program are Copyright (C) 1991-2025 by
+** not enumerated below used in this program are Copyright (C) 1991-2026 by
 ** Walter D. Pullen (Astara@msn.com, http://www.astrolog.org/astrolog.htm).
 ** Permission is granted to freely use, modify, and distribute these
 ** routines provided these credits and notices remain unmodified with any
@@ -48,7 +48,7 @@
 ** Initial programming 8/28-30/1991.
 ** X Window graphics initially programmed 10/23-29/1991.
 ** PostScript graphics initially programmed 11/29-30/1992.
-** Last code change made 6/19/2025.
+** Last code change made 5/28/2026.
 */
 
 #include "astrolog.h"
@@ -441,6 +441,29 @@ KV KvHue2(real deg)
 }
 
 
+// Given an RGB color value, return the palette index closest to it.
+
+KI KiFromKv(KV kv, flag fAll)
+{
+  int iMax, nR0, nG0, nB0, nR, nG, nB, i, iMin = -1, n, nMin = nLarge;
+  KV kvCur;
+
+  nR0 = RgbR(kv); nG0 = RgbG(kv); nB0 = RgbB(kv);
+  iMax = !fAll ? cColor : cColor2;
+  for (i = 0; i < iMax; i++) {
+    // Check the sum of the squares of the differences in R+G+B channels.
+    kvCur = rgbbmp[i];
+    nR = RgbR(kvCur); nG = RgbG(kvCur); nB = RgbB(kvCur);
+    n = Sq(NAbs(nR - nR0)) + Sq(NAbs(nG - nG0)) + Sq(NAbs(nB - nB0));
+    if (n < nMin) {
+      nMin = n;
+      iMin = i;
+    }
+  }
+  return iMin;
+}
+
+
 /*
 ******************************************************************************
 ** General Astrology Procedures.
@@ -514,8 +537,29 @@ real Midpoint(real deg1, real deg2)
 {
   real mid;
 
-  mid = (deg1+deg2)/2.0;
-  return MinDistance(deg1, mid) < rDegQuad ? mid : Mod(mid+rDegHalf);
+  mid = (deg1 + deg2)/2.0;
+  return MinDistance(deg1, mid) < rDegQuad ? mid : Mod(mid + rDegHalf);
+}
+
+
+// Like Midpoint() but return the point proportioned between the two degrees.
+
+real Midpoint2(real deg1, real deg2, real rRatio)
+{
+  real mid;
+
+  if (rRatio == 0.5) {
+    // Simple bisection is the same as Midpoint() function.
+    mid = (deg1 + deg2)/2.0;
+    if (MinDistance(deg1, mid) >= rDegQuad)
+      mid = Mod(mid + rDegHalf);
+  } else {
+    // Alternate ratio requires different math.
+    mid = Ratio(deg1, deg2, rRatio);
+    if (RAbs(deg2 - deg1) > rDegHalf)
+      mid = Mod(mid + ((deg1 > deg2) ? rDegMax : -rDegMax)*rRatio);
+  }
+  return mid;
 }
 
 
@@ -566,12 +610,12 @@ void SphRatio(real lon1, real lat1, real lon2, real lat2, real rRatio,
 
 char *Dignify(int obj, int sign)
 {
-  static char szDignify[7];
+  static char szDignify[rrMax+2];
   int sign2 = Mod12(sign+6), ray, ich;
 
   sprintf(szDignify, "-_____");
   if (obj > oNorm)
-    goto LExit;
+    return szDignify;
 
   // Check standard rulerships.
   if (!ignore7[rrStd]) {
@@ -610,16 +654,13 @@ char *Dignify(int obj, int sign)
     }
   }
 
-LExit:
   // Put "most significant" rulership state present in the first character.
-  // Order: Standard rulership, exaltation, esoteric, Hierarchical, Ray.
-  for (ich = 1; ich <= rrMax; ich += (ich == 1 ? 3 :
-    (ich == 4 ? -2 : (ich == 3 ? 2 : 1)))) {
+  // Order: Standard rulership, esoteric, Hierarchical, exaltation, Ray.
+  for (ich = 1; ich <= rrMax; ich++)
     if (szDignify[ich] != '_') {
       szDignify[0] = szDignify[ich];
       break;
     }
-  }
   return szDignify;
 }
 
@@ -846,14 +887,40 @@ void AddTime(CI *pci, int mode, int toadd)
 
 real GetOffsetCI(CONST CI *pci)
 {
-  real zon = pci->zon, dst = pci->dst;
+  real zon = pci->zon, dst = pci->dst, jd;
 
   if (zon == zonLMT)
     zon = pci->lon / 15.0;
-  else if (zon == zonLAT)
-    zon = pci->lon / 15.0 - SwissLatLmt(is.JD);
+  else if (zon == zonLAT) {
+    jd = (real)MdyToJulian(pci->mon, pci->day, pci->yea);
+    zon = pci->lon / 15.0 - SwissLatLmt(jd);
+  }
   dst = DstReal(dst);
   return zon - dst;
+}
+
+
+// Adjust chart info to have a new time zone and Daylight value. Change its
+// time (and potentially date) so the planet positions will remain the same.
+
+real AdjustTimeZone(CI *pci, real zon, real dst)
+{
+  real off1, off2;
+  int tim;
+  CI ci2;
+
+  off1 = GetOffsetCI(pci);
+  ci2 = *pci; ci2.zon = zon; ci2.dst = dst;
+  off2 = GetOffsetCI(&ci2);
+  pci->tim += (off1 - off2);
+  // AdjustTime() only operates on integer seconds, so preserve fraction.
+  tim = (int)RFloor(pci->tim) * 3600;
+#ifdef ATLAS
+  AdjustTime(&pci->mon, &pci->day, &pci->yea, &tim);
+#endif
+  pci->tim = (real)tim / 3600.0 + RFract(pci->tim);
+  pci->zon = zon; pci->dst = dst;
+  return off1 - off2;
 }
 
 
@@ -1371,6 +1438,11 @@ void PrintWarning(CONST char *sz)
 
   if (wi.fNoPopup)
     return;
+  if (gs.nAnim > 0) {
+    // Turn off animation to avoid continual warning messages.
+    neg(gs.nAnim);
+    WiCheckMenu(cmdAnimateNo, fFalse);
+  }
   sprintf(szT, "%s Warning", szAppName);
   MessageBox(wi.hwndMain, sz, szT, MB_ICONSTOP);
 #endif
@@ -1393,6 +1465,11 @@ void PrintError(CONST char *sz)
 
   if (wi.fNoPopup)
     return;
+  if (gs.nAnim > 0) {
+    // Turn off animation to avoid continual error messages.
+    neg(gs.nAnim);
+    WiCheckMenu(cmdAnimateNo, fFalse);
+  }
   sprintf(szT, "%s Error", szAppName);
   MessageBox(wi.hwndMain, sz, szT, MB_ICONEXCLAMATION);
 #endif
@@ -1516,19 +1593,16 @@ void ErrorEphem(CONST char *sz, long l)
 
 // Set an Ansi or MS Windows text color.
 
-void AnsiColor(int k)
+void AnsiColor(KI k)
 {
   char sz[cchSzDef];
   int cchSav;
-#ifdef GRAPH
-  KV kv;
-#endif
 
 #ifdef WIN
   if (is.S == stdout) {
-    if (k < 0)
+    if (k == kDefault || !us.fAnsiColor)
       k = kLtGrayA;
-    SetTextColor(wi.hdc, (COLORREF)rgbbmp[us.fAnsiColor ? k : kLtGrayA]);
+    SetTextColor(wi.hdc, (COLORREF)KvFromKi(k));
     return;
   }
 #endif
@@ -1561,17 +1635,7 @@ void AnsiColor(int k)
     if (k < 0)
       k = kLtGrayA;
     PrintSz("<font color=\"");
-#ifdef GRAPH
-    if (rgbbmp[k] == rgbbmpDef[k])
-      PrintSz(szColorHTML[k]);
-    else {
-      kv = rgbbmp[k];
-      sprintf(sz, "#%06x", Rgb(RgbB(kv), RgbG(kv), RgbR(kv)));
-      PrintSz(sz);
-    }
-#else
-    PrintSz(szColorHTML[k]);
-#endif
+    PrintSz(SzColorHTML(k));
     PrintSz("\">");
     is.nHTML = 1;
   }
@@ -1720,7 +1784,7 @@ char *SzZodiac(real deg)
 
 char *SzAltitude(real deg)
 {
-  static char szAlt[11];
+  static char szAlt[15];
   int d, m, f;
   real s;
 
@@ -1759,7 +1823,7 @@ char *SzAltitude(real deg)
 
 char *SzDegree(real deg)
 {
-  static char szPos[11];
+  static char szPos[15];
   int d, m;
   real s;
 
@@ -1796,7 +1860,7 @@ char *SzDegree(real deg)
 
 char *SzDegree2(real deg)
 {
-  static char szPos[11], *pch;
+  static char szPos[15], *pch;
   int d, m;
   real s;
 
@@ -1868,6 +1932,7 @@ char *SzDate(int mon, int day, int yea, int nFormat)
 
   if (us.fEuroDate) {
     switch (nFormat) {
+    case  3: sprintf(szDat, "%2d %.3s %d", day, szMonth[mon], yea);  break;
     case  2: sprintf(szDat, "%2d %.3s %4d", day, szMonth[mon], yea); break;
     case  1: sprintf(szDat, "%d %s %d", day, szMonth[mon], yea);     break;
     case -1: sprintf(szDat, "%2d-%2d-%2d", day, mon, NAbs(yea)%100); break;
@@ -1890,9 +1955,10 @@ char *SzDate(int mon, int day, int yea, int nFormat)
 // (and second) quantity. This is formatted in 24 hour or am/pm time based on
 // whether the "European" time format flag is set or not.
 
-char *SzTimeR(int hr, int min, int sec, real rSec)
+char *SzTimeR(int hr, int min, int sec, int mil)
 {
   static char szTim[16];
+  flag fSecond = !(sec < 0 || (us.fSecondHide && (sec == 0 && mil < 0)));
 
   while (min >= 60) {
     min -= 60;
@@ -1909,22 +1975,23 @@ char *SzTimeR(int hr, int min, int sec, real rSec)
     return szTim;
   }
   if (us.fEuroTime) {
-    if (sec < 0)
+    if (!fSecond)
       sprintf(szTim, "%2d:%02d", hr, min);
-    else if (rSec < 0.0)
+    else if (mil < 0)
       sprintf(szTim, "%2d:%02d:%02d", hr, min, sec);
     else
-      sprintf(szTim, "%2d:%02d:%06.3f", hr, min, rSec);
+      sprintf(szTim, "%2d:%02d:%02d.%03d", hr, min, sec, mil);
   } else {
-    if (sec < 0)
+    if (!fSecond)
       sprintf(szTim, "%2d:%02d%cm", Mod12(hr), min, hr < 12 ? 'a' : 'p');
-    else if (rSec < 0.0)
+    else if (mil < 0)
       sprintf(szTim, "%2d:%02d:%02d%cm",
         Mod12(hr), min, sec, hr < 12 ? 'a' : 'p');
     else
-      sprintf(szTim, "%2d:%02d:%06.3f%cm",
-        Mod12(hr), min, rSec, hr < 12 ? 'a' : 'p');
+      sprintf(szTim, "%2d:%02d:%02d.%03d%cm",
+        Mod12(hr), min, sec, mil, hr < 12 ? 'a' : 'p');
   }
+  is.ichLocSplit = fSecond;    // Flag whether seconds were output.
   return szTim;
 }
 
@@ -1933,10 +2000,10 @@ char *SzTimeR(int hr, int min, int sec, real rSec)
 
 char *SzTim(real tim)
 {
-  tim += rSmall;
-  return SzTimeR(NFloor(tim), (int)(RFract(RAbs(tim))*60.0),
-    us.fSeconds ? (int)(RFract(RAbs(tim))*3600.0) % 60 : -1,
-    f1K ? RMod(RFract(RAbs(tim))*3600.0, 60.0) : -1.0);
+  tim = RAbs(tim) + rSmall;
+  return SzTimeR(NFloor(tim), (int)(RFract(tim)*60.0),
+    us.fSeconds ? (int)(RFract(tim)*3600.0) % 60 : -1,
+    f1K ? (int)(RFract(tim)*3600000.0) % 1000 : -1);
 }
 
 
@@ -1951,7 +2018,7 @@ char *SzZone(real zon)
     sprintf(szZon, "LMT");
   else if (zon == zonLAT)
     sprintf(szZon, "LAT");
-  else if (!us.fSeconds && RFract(RAbs(zon)) < rSmall)
+  else if ((!us.fSeconds || us.fSecondHide) && RFract(RAbs(zon)) < rSmall)
     sprintf(szZon, "%d%c", (int)RAbs(zon), zon < 0.0 ? 'E' : 'W');
   else
     sprintf(szZon, "%d:%02d%c", (int)RAbs(zon), (int)(RFract(RAbs(zon))*60.0+
@@ -1972,13 +2039,17 @@ char *SzOffset(real zon, real dst, real lon)
   flag fLMT;
 
   if (!us.fOffsetOnly)
-    sprintf(szOff, "%cT %s%s", ChDst(Dst), !f1K ? "Zone " : "", SzZone(Zon));
+    sprintf(szOff, "%cT %s%s", ChDst(dst), !f1K ? "Zone " : "", SzZone(zon));
   else {
     fLMT = (zon == zonLMT || zon == zonLAT);
     if (dst == dstAuto)
       dst = (real)is.fDst;
     off = (!fLMT ? zon - dst : lon - dst*15.0);
-    min = (int)(RFract(RAbs(off))*60.0);
+    if (is.fZoneMeridian) {
+      off = (zon - dst)*15.0;
+      fLMT = fTrue;
+    }
+    min = (int)(RFract(RAbs(off))*60.0 + rSmall);
     sprintf(szOff, "Zone %c%d%c", !fLMT ? 'h' : 'm', NAbs((int)off),
       off > 0.0 ? 'w' : 'e');
     if (min != 0) {
@@ -2001,13 +2072,28 @@ char *SzLocation(real lon, real lat)
   int i, j, i2, j2, i3, j3;
   real rT;
   char chDeg, chLon, chLat;
+  flag fSav = us.fSeconds;
 
+  // Check if seconds are zero so don't have to be output.
+  if (us.fSecondHide && us.fSeconds) {
+    rT = RAbs(lon)*60.0 + rSmall;
+    if (RFract(rT) < rRound/3600.0/1000.0) {
+      rT = RAbs(lat)*60.0 + rSmall;
+      if (RFract(rT) < rRound/3600.0/1000.0)
+        us.fSeconds = fFalse;
+    }
+  }
+  is.ichLocSplit = VSeconds(7, 10, 14);
+
+  // Round location to nearest unit if specified.
   if (us.fRound)
     rT = VSeconds(rRound/60.0, rRound/3600.0, rRound/3600.0/1000.0);
   else
     rT = rSmall;
   lon = RSgn(lon) * (RAbs(lon) + rT);
   lat = RSgn(lat) * (RAbs(lat) + rT);
+
+  // Determine degrees, minutes, and seconds of location.
   i = (int)(RFract(RAbs(lon))*60.0);
   j = (int)(RFract(RAbs(lat))*60.0);
   if (us.fSeconds) {
@@ -2020,6 +2106,7 @@ char *SzLocation(real lon, real lat)
   }
   chLon = (lon < 0.0 ? 'E' : 'W');
   chLat = (lat < 0.0 ? 'S' : 'N');
+
   if (us.fAnsiChar == 4) {
     // Format like "47N36,122W19", as seen in AAF files.
     if (!us.fSeconds)
@@ -2049,8 +2136,11 @@ char *SzLocation(real lon, real lat)
       if (!us.fSeconds)
         sprintf(szLoc, "%6.2f%c%6.2f%c",
           RAbs(lon), chLon, RAbs(lat), chLat);
-      else
+      else if (!us.fSecond1K)
         sprintf(szLoc, "%9.5f%c%9.5f%c",
+          RAbs(lon), chLon, RAbs(lat), chLat);
+      else
+        sprintf(szLoc, "%13.9f%c%13.9f%c",
           RAbs(lon), chLon, RAbs(lat), chLat);
     }
   } else {
@@ -2071,11 +2161,15 @@ char *SzLocation(real lon, real lat)
       if (!us.fSeconds)
         sprintf(szLoc, "%5.1f%c%5.1f%c",
           RAbs(lon), chLon, RAbs(lat), chLat);
-      else
+      else if (!us.fSecond1K)
         sprintf(szLoc, "%8.4f%c%8.4f%c",
+          RAbs(lon), chLon, RAbs(lat), chLat);
+      else
+        sprintf(szLoc, "%12.8f%c%12.8f%c",
           RAbs(lon), chLon, RAbs(lat), chLat);
     }
   }
+  us.fSeconds = fSav;
   return szLoc;
 }
 
@@ -2125,6 +2219,72 @@ char *SzLength(real len)
     ;
   sprintf(pch, "%s", us.fEuroDist ? "cm" : "in");
   return szLen;
+}
+
+
+// Format and return a string containing a color, either as a palette index
+// name or a general RGB value.
+
+char *SzColor(KI ki)
+{
+  static char szCol[8];
+
+  if (ki >= 0)
+    sprintf(szCol, "%s", szColor[ki]);
+  else {
+    // Compose RGB color value.
+    neg(ki);
+    sprintf(szCol, "#%06x", Rgb(RgbB(ki), RgbG(ki), RgbR(ki)));
+  }
+  return szCol;
+}
+
+
+// Format and return a string containing a color, either as a palette index
+// name (abbreviated to its first three characters) or a general RGB value.
+
+char *SzColor2(KI ki)
+{
+  static char szCol[8];
+
+  if (ki >= 0)
+    sprintf(szCol, "%.3s", szColor[ki]);
+  else {
+    // Compose RGB color value.
+    neg(ki);
+    sprintf(szCol, "#%06x", Rgb(RgbB(ki), RgbG(ki), RgbR(ki)));
+  }
+  return szCol;
+}
+
+
+CONST char *szColorHTML[cColor2] = {
+  "black", "", "", "", "", "purple", "", "",
+  "", "red", "lime", "yellow", "blue", "magenta", "cyan", "white",
+  "", "", "", "", "", "", "", "", "", ""};
+
+// Return the string to use for a RGB color value in an HTML or SVG file.
+
+CONST char *SzColorHTML(KI ki)
+{
+  static char szCol[8];
+  KV kv;
+
+  // Check if the color matches one of the SVG predefined color names.
+  if (ki >= 0) {
+    if (
+#ifdef GRAPH
+      rgbbmp[ki] == rgbbmpDef[ki] &&
+#endif
+      *szColorHTML[ki] != chNull)
+      return szColorHTML[ki];
+    kv = rgbbmp[ki];
+  } else
+    kv = -ki;
+
+  // Otherwise compose the RGB value for this color.
+  sprintf(szCol, "#%06x", Rgb(RgbB(kv), RgbG(kv), RgbR(kv)));
+  return szCol;
 }
 
 
@@ -2555,7 +2715,7 @@ int UTF8ToWch(CONST uchar *pch, wchar *pwch)
     return 1;
   }
 
-  // 2 byte UTF8 sequence: Characters 0x80 - 0x7FF
+  // 2 byte UTF8 sequence: Characters 0x80 - 0x7ff
   ch2 = pch[1];
   if ((ch1 & 0xe0) == 0xc0 && (ch2 & 0xc0) == 0x80) {
     if (pwch != NULL)
@@ -2563,7 +2723,7 @@ int UTF8ToWch(CONST uchar *pch, wchar *pwch)
     return 2;
   }
 
-  // 3 byte UTF8 sequence: Characters 0x800 - 0xFFFF
+  // 3 byte UTF8 sequence: Characters 0x800 - 0xffff
   ch3 = pch[2];
   if ((ch1 & 0xf0) == 0xe0 && (ch2 & 0xc0) == 0x80 && (ch3 & 0xc0) == 0x80) {
     if (pwch != NULL)
@@ -2588,14 +2748,14 @@ int WchToUTF8(wchar wch, char *sz)
     return 1;
   }
 
-  // 2 byte UTF8 sequence: Characters 0x80 - 0x7FF
+  // 2 byte UTF8 sequence: Characters 0x80 - 0x7ff
   if (wch < 0x800) {
     sprintf(sz, "%c%c", (uchar)(0xc0 | (wch >> 6)),
       (uchar)(0x80 | (wch & 0x3f)));
     return 2;
   }
 
-  // 3 byte UTF8 sequence: Characters 0x800 - 0xFFFF
+  // 3 byte UTF8 sequence: Characters 0x800 - 0xffff
   sprintf(sz, "%c%c%c", (uchar)(0xe0 | (wch >> 12)),
     (uchar)(0x80 | ((wch >> 6) & 0x3f)), (uchar)(0x80 | (wch & 0x3f)));
   return 3;
@@ -2619,6 +2779,22 @@ wchar WchFromChIBM(uchar ch)
   if (ch < 128)
     return ch;
   return rgwch437[ch - 128];
+}
+
+
+// Convert a byte sequence to Unicode, based on the current character set,
+// returning number of bytes in the character.
+
+int PchToWch(CONST uchar *pch, wchar *pwch)
+{
+  if (us.nCharset == ccUTF8)
+    return UTF8ToWch(pch, pwch);
+  else if (us.nCharset == ccIBM) {
+    *pwch = WchFromChIBM(*pch);
+    return 1;
+  }
+  *pwch = WchFromChLatin(*pch);
+  return 1;
 }
 
 
@@ -3066,8 +3242,8 @@ flag FEnsureMacro(int cszNew)
   if (cszNew <= is.cszMacro)
     return fTrue;
 
-  if (cszNew <= 48)
-    cszNew = 48 + 1;
+  if (cszNew <= cMacro)
+    cszNew = cMacro + 1;
   rgszT = (char **)RgReallocate(is.rgszMacro, is.cszMacro,
     sizeof(char *), cszNew, "macro list");
   if (rgszT == NULL)

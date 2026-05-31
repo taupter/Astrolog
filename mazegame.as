@@ -1,5 +1,5 @@
-@AS780
-; Astrolog Maze game - A script file for Astrolog 7.80
+@AS800
+; Astrolog Maze game - A script file for Astrolog 8.00
 ; By Walter D. Pullen, Astara@msn.com, http://www.astrolog.org/astrolog.htm
 
 -M0 1 "-YYT 'Welcome to Astrolog Mazes! :)\nUse w/a/s/d keys to move the dot through the Maze to the finish.\n\nPress F1 to display this help text.\nPress F2 to create new Maze.\nPress F3 to create smaller Maze.\nPress F4 to create larger Maze.\nPress F5 to restart current Maze.\n'"
@@ -25,7 +25,7 @@
 ~Q2 "=f Inc Div Dec Min _Xwx _Xwy Mul @d 12 =e Mul @f 2 =h Div Sub Min _Xwx _Xwy Mul Dec @c @e 2 DCol K_Red =v Add @h Mul @a @e =w Add @h Mul @b @e DDisk Sub @v @f Sub @w @f Add @v Dec @f Add @w Dec @f Macro 1"
 ~Q3 "If Not @k Do2 =k 1 Switch 1 =t JulianT If Not @l Do =l 1 Switch 11"
 ~XQ "If Equ @z 119 =z 208 If Equ @z 97 =z 206 If Equ @z 115 =z 209 If Equ @z 100 =z 207"
-~WQ "If Equ @z 40088 =z 40160 If Equ @z 40139 =z 40158 If Equ @z 40289 =z 40161 If Equ @z 40093 =z 40159"
+~WQ "If Equ @z 40089 =z 40161 If Equ @z 40140 =z 40159 If Equ @z 40341 =z 40162 If Equ @z 40094 =z 40160"
 
 ~1 "=d 10 =f 5 =l 1 If WIN Switch 12"
 =b0 =Xe

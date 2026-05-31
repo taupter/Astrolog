@@ -1,8 +1,8 @@
 /*
-** Astrolog (Version 7.80) File: atlas.cpp
+** Astrolog (Version 8.00) File: atlas.cpp
 **
 ** IMPORTANT NOTICE: Astrolog and all chart display routines and anything
-** not enumerated below used in this program are Copyright (C) 1991-2025 by
+** not enumerated below used in this program are Copyright (C) 1991-2026 by
 ** Walter D. Pullen (Astara@msn.com, http://www.astrolog.org/astrolog.htm).
 ** Permission is granted to freely use, modify, and distribute these
 ** routines provided these credits and notices remain unmodified with any
@@ -48,7 +48,7 @@
 ** Initial programming 8/28-30/1991.
 ** X Window graphics initially programmed 10/23-29/1991.
 ** PostScript graphics initially programmed 11/29-30/1992.
-** Last code change made 6/19/2025.
+** Last code change made 5/28/2026.
 */
 
 #include "astrolog.h"
@@ -485,7 +485,9 @@ CONST char *rgszzn[iznMax] = {
 "America/Cayman",
 "America/Chicago",
 "America/Chihuahua",
+"America/Ciudad_Juarez",
 "America/Costa_Rica",
+"America/Coyhaique",
 "America/Creston",
 "America/Cuiaba",
 "America/Curacao",
@@ -555,6 +557,7 @@ CONST char *rgszzn[iznMax] = {
 "America/North_Dakota/Beulah",
 "America/North_Dakota/Center",
 "America/North_Dakota/New_Salem",
+"America/Nuuk",
 "America/Ojinaga",
 "America/Panama",
 "America/Pangnirtung",
@@ -733,8 +736,9 @@ CONST char *rgszzn[iznMax] = {
 "Europe/Istanbul",
 "Europe/Jersey",
 "Europe/Kaliningrad",
-"Europe/Kiev",
+"Europe/Kiev", // Deprecated
 "Europe/Kirov",
+"Europe/Kyiv",
 "Europe/Lisbon",
 "Europe/Ljubljana",
 "Europe/London",
@@ -973,7 +977,8 @@ flag FLoadAtlas(FILE *file, int cae)
     pae->szNam[j] = chNull;
     if (pae->icn < 0) {
       sprintf(szLine,
-        "Atlas error: City %d in unknown country/region: '%s'\n", i, szAbb);
+        "Atlas error: City %d (%s) in unknown country/region: '%s'\n",
+        i, pae->szNam, szAbb);
       PrintError(szLine);
       return fFalse;
     }
@@ -994,8 +999,10 @@ flag FLoadAtlas(FILE *file, int cae)
           break;
     }
     if (j >= iznMax) {
+      sprintf(szAbb, "%s", pch);
       sprintf(szLine,
-        "Atlas error: City %d in unknown time zone: '%s'\n", i, pch);
+        "Atlas error: City %d (%s) in unknown time zone: '%s'\n",
+        i, pae->szNam, szAbb);
       PrintError(szLine);
       return fFalse;
     }
@@ -1751,7 +1758,7 @@ flag DisplayAtlasNearby(real lon, real lat, size_t lDialog, int *piae,
 
 
 // Sanitize a time, in which the individual parameters may be out of range.
-// For example, 25:00 on 32 Dec 2024 gets converted to 1:00 on 2 Jan 2025.
+// For example, 25:00 on 32 Dec 2026 gets converted to 1:00 on 2 Jan 2027.
 
 void AdjustTime(int *mon, int *day, int *yea, int *tim)
 {
@@ -1969,7 +1976,7 @@ LSkip:
     Assert(pzc2->irun < is.crun);
     irue = is.rgrun[pzc2->irun].irue;
     crue = is.rgrun[pzc2->irun + 1].irue - irue;
-    yea2 = Min(pzc2->yea, Max(2025, Min(2080,
+    yea2 = Min(pzc2->yea, Max(2030, Min(2080,
       (ci != NULL ? ci->yea : Yea) + 5)));
 
     // Loop over each year within the time change entry.
